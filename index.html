@@ -1935,6 +1935,9 @@ function initCanvas() {
     lastX = pos.x; lastY = pos.y;
     ctx.strokeStyle = '#1a3a6b'; ctx.lineWidth = 2.5;
     ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+    // Begin path at touch point — don't draw yet
+    ctx.beginPath();
+    ctx.moveTo(lastX, lastY);
     canvas.classList.add('has-sig');
     document.getElementById('save-sig-btn').style.display = 'inline-block';
   }
@@ -1942,7 +1945,10 @@ function initCanvas() {
     if (!isDrawing) return;
     e.preventDefault();
     const pos = getPos(e);
-    ctx.beginPath(); ctx.moveTo(lastX, lastY); ctx.lineTo(pos.x, pos.y); ctx.stroke();
+    ctx.lineTo(pos.x, pos.y);
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(pos.x, pos.y);
     lastX = pos.x; lastY = pos.y;
   }
   function stop() { isDrawing = false; }
@@ -2017,12 +2023,17 @@ function initEmpCanvas() {
     const pos = getPos(e); empLastX = pos.x; empLastY = pos.y;
     ctx.strokeStyle = '#1a3a6b'; ctx.lineWidth = 2.5;
     ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+    ctx.beginPath();
+    ctx.moveTo(empLastX, empLastY);
     document.getElementById('save-emp-sig-btn').style.display = 'inline-block';
   }
   function draw(e) {
     if (!isEmpDrawing) return; e.preventDefault();
     const pos = getPos(e);
-    ctx.beginPath(); ctx.moveTo(empLastX, empLastY); ctx.lineTo(pos.x, pos.y); ctx.stroke();
+    ctx.lineTo(pos.x, pos.y);
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(pos.x, pos.y);
     empLastX = pos.x; empLastY = pos.y;
   }
   function stop() { isEmpDrawing = false; }
