@@ -1918,37 +1918,43 @@ function resizeCanvas() {
 function initCanvas() {
   const canvas = document.getElementById('sigCanvas');
   const ctx = canvas.getContext('2d');
-  resizeCanvas();
+
+  function resizeSigCanvas() {
+    const rect = canvas.getBoundingClientRect();
+    if (rect.width === 0) return;
+    const dpr = window.devicePixelRatio || 1;
+    canvas.width = rect.width * dpr;
+    canvas.height = rect.height * dpr;
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    ctx.scale(dpr, dpr);
+    ctx.strokeStyle = '#1a3a6b'; ctx.lineWidth = 2.5;
+    ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+  }
+  resizeSigCanvas();
 
   function getPos(e) {
-    const rect = canvas.getBoundingClientRect();
+    const r = canvas.getBoundingClientRect();
+    const dpr = window.devicePixelRatio || 1;
     const src = e.touches ? e.touches[0] : e;
     return {
-      x: (src.clientX - rect.left) * (canvas.width / rect.width) / (window.devicePixelRatio || 1),
-      y: (src.clientY - rect.top) * (canvas.height / rect.height) / (window.devicePixelRatio || 1)
+      x: (src.clientX - r.left),
+      y: (src.clientY - r.top)
     };
   }
   function start(e) {
     e.preventDefault();
+    resizeSigCanvas();
     isDrawing = true;
-    const pos = getPos(e);
-    lastX = pos.x; lastY = pos.y;
+    const pos = getPos(e); lastX = pos.x; lastY = pos.y;
     ctx.strokeStyle = '#1a3a6b'; ctx.lineWidth = 2.5;
     ctx.lineCap = 'round'; ctx.lineJoin = 'round';
-    // Begin path at touch point — don't draw yet
-    ctx.beginPath();
-    ctx.moveTo(lastX, lastY);
     canvas.classList.add('has-sig');
     document.getElementById('save-sig-btn').style.display = 'inline-block';
   }
   function draw(e) {
-    if (!isDrawing) return;
-    e.preventDefault();
+    if (!isDrawing) return; e.preventDefault();
     const pos = getPos(e);
-    ctx.lineTo(pos.x, pos.y);
-    ctx.stroke();
-    ctx.beginPath();
-    ctx.moveTo(pos.x, pos.y);
+    ctx.beginPath(); ctx.moveTo(lastX, lastY); ctx.lineTo(pos.x, pos.y); ctx.stroke();
     lastX = pos.x; lastY = pos.y;
   }
   function stop() { isDrawing = false; }
