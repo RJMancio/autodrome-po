@@ -2244,7 +2244,31 @@ function pullViaScript(silent = false) {
     window[cbName] = function(json) {
       try {
         if (json.ok && Array.isArray(json.data) && json.data.length > 0) {
-          poList = json.data;
+          // Smart merge: for each PO from cloud, only use it if
+          // it's newer than or not present in local data
+          const cloudMap = {};
+          json.data.forEach(po => { if (po.id) cloudMap[po.id] = po; });
+
+          const localMap = {};
+          poList.forEach(po => { if (po.id) localMap[po.id] = po; });
+
+          // Status priority: approved > voided > pending
+          const statusRank = { approved: 3, voided: 2, pending: 1 };
+
+          const merged = [];
+          const allIds = new Set([...Object.keys(cloudMap), ...Object.keys(localMap)]);
+          allIds.forEach(id => {
+            const cloud = cloudMap[id];
+            const local = localMap[id];
+            if (!local) { merged.push(cloud); return; }
+            if (!cloud) { merged.push(local); return; }
+            // Keep whichever has higher status rank (approved beats pending)
+            const cloudRank = statusRank[cloud.status] || 0;
+            const localRank = statusRank[local.status] || 0;
+            merged.push(cloudRank >= localRank ? cloud : local);
+          });
+
+          poList = merged;
           save();
           renderPending(); renderApproved(); renderVoided(); updateBadge();
           if (!silent) showToast('✓ Synced from cloud!');
