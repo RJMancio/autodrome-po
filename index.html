@@ -1919,45 +1919,35 @@ function initCanvas() {
   const canvas = document.getElementById('sigCanvas');
   const ctx = canvas.getContext('2d');
 
-  function resizeSigCanvas() {
-    const rect = canvas.getBoundingClientRect();
-    if (rect.width === 0) return;
-    // Set canvas pixel size to match CSS size exactly — no DPR scaling
-    canvas.width = rect.width;
-    canvas.height = rect.height;
-    ctx.strokeStyle = '#1a3a6b'; ctx.lineWidth = 2.5;
-    ctx.lineCap = 'round'; ctx.lineJoin = 'round';
-  }
-  resizeSigCanvas();
-
   function getPos(e) {
     const r = canvas.getBoundingClientRect();
-    const dpr = window.devicePixelRatio || 1;
     const src = e.touches ? e.touches[0] : e;
+    const scaleX = canvas.width / r.width;
+    const scaleY = canvas.height / r.height;
     return {
-      x: (src.clientX - r.left),
-      y: (src.clientY - r.top)
+      x: (src.clientX - r.left) * scaleX,
+      y: (src.clientY - r.top) * scaleY
     };
   }
-  let firstMove = false;
   function start(e) {
     e.preventDefault();
-    isDrawing = true;
-    firstMove = true;
+    // Resize canvas to actual display size on every new stroke
+    const r = canvas.getBoundingClientRect();
+    if (canvas.width !== r.width || canvas.height !== r.height) {
+      canvas.width = r.width;
+      canvas.height = r.height;
+    }
     ctx.strokeStyle = '#1a3a6b'; ctx.lineWidth = 2.5;
     ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+    isDrawing = true;
+    const pos = getPos(e);
+    lastX = pos.x; lastY = pos.y;
     canvas.classList.add('has-sig');
     document.getElementById('save-sig-btn').style.display = 'inline-block';
   }
   function draw(e) {
     if (!isDrawing) return; e.preventDefault();
     const pos = getPos(e);
-    if (firstMove) {
-      // First move after touchstart — just reposition, don't draw
-      lastX = pos.x; lastY = pos.y;
-      firstMove = false;
-      return;
-    }
     ctx.beginPath(); ctx.moveTo(lastX, lastY); ctx.lineTo(pos.x, pos.y); ctx.stroke();
     lastX = pos.x; lastY = pos.y;
   }
@@ -2024,23 +2014,22 @@ function initEmpCanvas() {
       y: (src.clientY - r.top) * (canvas.height / r.height) / (window.devicePixelRatio || 1)
     };
   }
-  let empFirstMove = false;
   function start(e) {
     e.preventDefault();
-    isEmpDrawing = true;
-    empFirstMove = true;
+    const r = canvas.getBoundingClientRect();
+    if (canvas.width !== r.width || canvas.height !== r.height) {
+      canvas.width = r.width;
+      canvas.height = r.height;
+    }
     ctx.strokeStyle = '#1a3a6b'; ctx.lineWidth = 2.5;
     ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+    isEmpDrawing = true;
+    const pos = getPos(e); empLastX = pos.x; empLastY = pos.y;
     document.getElementById('save-emp-sig-btn').style.display = 'inline-block';
   }
   function draw(e) {
     if (!isEmpDrawing) return; e.preventDefault();
     const pos = getPos(e);
-    if (empFirstMove) {
-      empLastX = pos.x; empLastY = pos.y;
-      empFirstMove = false;
-      return;
-    }
     ctx.beginPath(); ctx.moveTo(empLastX, empLastY); ctx.lineTo(pos.x, pos.y); ctx.stroke();
     empLastX = pos.x; empLastY = pos.y;
   }
