@@ -1432,6 +1432,7 @@ function submitPO() {
     updateBadge();
     showToast('✓ PO updated successfully!');
     showPage('pending');
+    setTimeout(() => pullFromSheet(true), 5000);
   } else {
     // ── NEW PO ──
     const po = {
@@ -1453,6 +1454,7 @@ function submitPO() {
     renderPending();
     updateBadge();
     showPage('pending');
+    setTimeout(() => pullFromSheet(true), 5000);
   }
 }
 
@@ -1777,6 +1779,7 @@ function confirmVoid() {
   renderVoided();
   showToast('PO #' + po.poNumber + ' has been voided.', '#c0392b');
   showPage('voided');
+  setTimeout(() => pullFromSheet(true), 5000);
 }
 
 // ── PIN LOGIC ──
@@ -2097,8 +2100,8 @@ async function approvePO() {
     showToast('📁 Saving to Google Drive...', '#1a3a6b');
     await uploadToGDrive(po);
   }
-  // Don't pull immediately — give the push time to propagate to cloud.
-  // Other devices will pick up the change via their 30s auto-sync.
+  // Pull after delay so other devices see the change (grace period protects local)
+  setTimeout(() => pullFromSheet(true), 5000);
 }
 
 // ── GOOGLE SYNC ENGINE ──
@@ -2206,11 +2209,9 @@ async function pushToSheet(action, po, includePDF = false) {
       payload.pdf = btoa(binary);
     }
     // Use no-cors for POST — Apps Script accepts it
-    // keepalive: true ensures the request survives mobile tab backgrounding
     await fetch(syncUrl, {
       method: 'POST',
       mode: 'no-cors',
-      keepalive: true,
       headers: { 'Content-Type': 'text/plain' },
       body: JSON.stringify(payload)
     });
@@ -2222,7 +2223,7 @@ async function pushDeleteToSheet(id) {
   if (!syncEnabled || !syncUrl) return;
   try {
     await fetch(syncUrl, {
-      method: 'POST', mode: 'no-cors', keepalive: true,
+      method: 'POST', mode: 'no-cors',
       headers: { 'Content-Type': 'text/plain' },
       body: JSON.stringify({ action: 'delete', id })
     });
