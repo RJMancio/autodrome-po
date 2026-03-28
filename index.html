@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Autodrome PO System</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/signature_pad@4.2.0/dist/signature_pad.umd.min.js"></script>
 <style>
   @import url('https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;600;700&family=Barlow+Condensed:wght@600;700&display=swap');
 
@@ -1081,7 +1082,7 @@ const { jsPDF } = window.jspdf;
 let poList = [];
 let currentApproveId = null;
 let itemCount = 0;
-// (sigCanvas drawing state is now local inside initCanvas closure)
+// (sigCanvas drawing handled by SignaturePad library)
 
 // PIN — default is 1234
 let MANAGER_PIN = '1234';
@@ -1423,6 +1424,7 @@ function submitPO() {
     po.preparedBy = preparedBy; po.items = items; po.grandTotal = grandTotal;
     if (empSig) po.empSig = empSig;
     save();
+    markLocallyModified(po.id);
     pushToSheet('update', po);
     editingPOId = null;
     resetForm();
@@ -1430,8 +1432,6 @@ function submitPO() {
     updateBadge();
     showToast('✓ PO updated successfully!');
     showPage('pending');
-    // Auto-pull so other devices see the update immediately
-    setTimeout(() => pullFromSheet(), 2000);
   } else {
     // ── NEW PO ──
     const po = {
@@ -1446,14 +1446,13 @@ function submitPO() {
     };
     poList.push(po);
     save();
+    markLocallyModified(po.id);
     pushToSheet('submit', po);
     showToast('✓ PO submitted successfully!');
     resetForm();
     renderPending();
     updateBadge();
     showPage('pending');
-    // Auto-pull so other devices see it immediately
-    setTimeout(() => pullFromSheet(), 2000);
   }
 }
 
@@ -1770,6 +1769,7 @@ function confirmVoid() {
   po.voidedAt = new Date().toISOString();
   po.voidReason = reason;
   save();
+  markLocallyModified(po.id);
   pushToSheet('void', po);
 
   closeVoidModal();
@@ -1777,8 +1777,6 @@ function confirmVoid() {
   renderVoided();
   showToast('PO #' + po.poNumber + ' has been voided.', '#c0392b');
   showPage('voided');
-  // Auto-pull so other devices see the void immediately
-  setTimeout(() => pullFromSheet(), 2000);
 }
 
 // ── PIN LOGIC ──
@@ -1879,6 +1877,7 @@ function openApprove(id) {
   }
 
   document.getElementById('sig-modal').classList.add('open');
+  if (sigPad) sigPad.on(); // re-enable drawing
   clearSig();
   // Use rAF to ensure the modal is rendered before measuring canvas
   requestAnimationFrame(() => { requestAnimationFrame(resizeCanvas); });
@@ -1887,6 +1886,7 @@ function openApprove(id) {
 function switchToDrawMode() {
   document.getElementById('default-sig-banner').style.display = 'none';
   document.getElementById('draw-sig-section').style.display = 'block';
+  if (sigPad) sigPad.on();
   requestAnimationFrame(() => { requestAnimationFrame(resizeCanvas); });
 }
 
@@ -1909,109 +1909,46 @@ function uploadDefaultSig(e) {
 function closeModal() {
   document.getElementById('sig-modal').classList.remove('open');
   currentApproveId = null;
-  _sigDrawing = false;
+  if (sigPad) sigPad.off(); // disable drawing when modal closes
 }
 
-// ── CANVAS SIGNATURE (rebuilt from scratch — Pointer Events API) ──
-// All drawing state is local to initCanvas closure. No globals needed.
-let _sigDrawing = false; // exposed only for clearSig/closeModal reset
+// ── CANVAS SIGNATURE (using SignaturePad library) ──
+// SignaturePad handles all touch/mouse/pointer events, DPR scaling, and
+// coordinate mapping internally — no custom drawing code needed.
+let sigPad = null;
 
 function resizeCanvas() {
   const canvas = document.getElementById('sigCanvas');
-  if (!canvas) return;
-  const ctx = canvas.getContext('2d');
+  if (!canvas || !sigPad) return;
   const rect = canvas.getBoundingClientRect();
   if (rect.width === 0 || rect.height === 0) return;
-  // NO DPR scaling — keep canvas pixels = CSS pixels for simple 1:1 mapping
-  canvas.width = rect.width;
-  canvas.height = rect.height;
-  ctx.strokeStyle = '#1a3a6b';
-  ctx.lineWidth = 2.5;
-  ctx.lineCap = 'round';
-  ctx.lineJoin = 'round';
+  const dpr = window.devicePixelRatio || 1;
+  canvas.width = rect.width * dpr;
+  canvas.height = rect.height * dpr;
+  const ctx = canvas.getContext('2d');
+  ctx.scale(dpr, dpr);
+  sigPad.clear(); // reset after resize
 }
 
 function initCanvas() {
   const canvas = document.getElementById('sigCanvas');
-  const ctx = canvas.getContext('2d');
-
-  // Local state — completely isolated from globals
-  let drawing = false;
-  let lx = 0, ly = 0;
-
-  function getPos(e) {
-    const r = canvas.getBoundingClientRect();
-    return {
-      x: e.clientX - r.left,
-      y: e.clientY - r.top
-    };
-  }
-
-  function onDown(e) {
-    e.preventDefault();
-    // Ensure canvas dimensions match layout (handles modal just-opened case)
-    const r = canvas.getBoundingClientRect();
-    if (r.width > 0 && (canvas.width !== Math.round(r.width) || canvas.height !== Math.round(r.height))) {
-      canvas.width = r.width;
-      canvas.height = r.height;
-    }
-    ctx.strokeStyle = '#1a3a6b';
-    ctx.lineWidth = 2.5;
-    ctx.lineCap = 'round';
-    ctx.lineJoin = 'round';
-
-    drawing = true;
-    _sigDrawing = true;
-    const pos = getPos(e);
-    lx = pos.x;
-    ly = pos.y;
-
-    // Capture pointer so we get move/up even if finger leaves canvas
-    canvas.setPointerCapture(e.pointerId);
-
+  sigPad = new SignaturePad(canvas, {
+    penColor: '#1a3a6b',
+    minWidth: 1.5,
+    maxWidth: 3,
+    velocityFilterWeight: 0.7
+  });
+  // Track when user starts drawing
+  sigPad.addEventListener('beginStroke', () => {
     canvas.classList.add('has-sig');
     document.getElementById('save-sig-btn').style.display = 'inline-block';
-  }
-
-  function onMove(e) {
-    if (!drawing) return;
-    e.preventDefault();
-    const pos = getPos(e);
-    ctx.beginPath();
-    ctx.moveTo(lx, ly);
-    ctx.lineTo(pos.x, pos.y);
-    ctx.stroke();
-    lx = pos.x;
-    ly = pos.y;
-  }
-
-  function onUp(e) {
-    drawing = false;
-    _sigDrawing = false;
-    canvas.releasePointerCapture(e.pointerId);
-  }
-
-  // Pointer Events API — unified mouse + touch, no stray lines
-  canvas.addEventListener('pointerdown', onDown);
-  canvas.addEventListener('pointermove', onMove);
-  canvas.addEventListener('pointerup', onUp);
-  canvas.addEventListener('pointercancel', onUp);
-  canvas.addEventListener('pointerleave', function() {
-    drawing = false;
-    _sigDrawing = false;
   });
 }
 
 function clearSig() {
+  if (sigPad) sigPad.clear();
   const canvas = document.getElementById('sigCanvas');
-  const ctx = canvas.getContext('2d');
-  ctx.clearRect(0, 0, canvas.width, canvas.height);
-  ctx.strokeStyle = '#1a3a6b';
-  ctx.lineWidth = 2.5;
-  ctx.lineCap = 'round';
-  ctx.lineJoin = 'round';
-  _sigDrawing = false;
-  canvas.classList.remove('has-sig');
+  if (canvas) canvas.classList.remove('has-sig');
   document.getElementById('save-sig-btn').style.display = 'none';
 }
 
@@ -2026,9 +1963,7 @@ function saveDrawnSig() {
 }
 
 function isSigEmpty() {
-  const canvas = document.getElementById('sigCanvas');
-  const data = canvas.getContext('2d').getImageData(0, 0, canvas.width, canvas.height).data;
-  return !data.some(v => v !== 0);
+  return sigPad ? sigPad.isEmpty() : true;
 }
 
 // ── EMPLOYEE SIGNATURE ──
@@ -2154,6 +2089,7 @@ async function approvePO() {
   const po = poList.find(p => p.id === currentApproveId);
   po.status = 'approved'; po.approvedAt = new Date().toISOString(); po.approverSig = sigData;
   save();
+  markLocallyModified(po.id);
   pushToSheet('approve', po, true);
   closeModal(); renderPending(); renderApproved(); updateBadge();
   showToast('✓ PO Approved!'); showPage('approved');
@@ -2161,14 +2097,30 @@ async function approvePO() {
     showToast('📁 Saving to Google Drive...', '#1a3a6b');
     await uploadToGDrive(po);
   }
-  // Auto-pull so other devices see the approval immediately
-  setTimeout(() => pullFromSheet(), 2000);
+  // Don't pull immediately — give the push time to propagate to cloud.
+  // Other devices will pick up the change via their 30s auto-sync.
 }
 
 // ── GOOGLE SYNC ENGINE ──
 const SYNC_KEY = 'autodrome_sync_url';
 let syncUrl = '';
 let syncEnabled = false;
+
+// Track recently modified POs so cloud can't overwrite them during sync.
+// Maps PO id (as string) → timestamp when modified locally.
+const _recentLocalMods = {};
+const LOCAL_MOD_GRACE_SEC = 15; // seconds to protect local changes
+
+function markLocallyModified(poId) {
+  _recentLocalMods[String(poId)] = Date.now();
+}
+function isRecentlyModifiedLocally(poId) {
+  const ts = _recentLocalMods[String(poId)];
+  if (!ts) return false;
+  if (Date.now() - ts < LOCAL_MOD_GRACE_SEC * 1000) return true;
+  delete _recentLocalMods[String(poId)]; // expired
+  return false;
+}
 
 function loadSyncConfig() {
   try { syncUrl = localStorage.getItem(SYNC_KEY) || ''; } catch(e) {}
@@ -2292,13 +2244,13 @@ function pullViaScript(silent = false) {
     window[cbName] = function(json) {
       try {
         if (json.ok && Array.isArray(json.data) && json.data.length > 0) {
-          // Smart merge: for each PO from cloud, only use it if
-          // it's newer than or not present in local data
+          // Smart merge: compare cloud vs local, keep the "better" version.
+          // All IDs are coerced to strings to avoid type-mismatch (number vs string).
           const cloudMap = {};
-          json.data.forEach(po => { if (po.id) cloudMap[po.id] = po; });
+          json.data.forEach(po => { if (po.id != null) cloudMap[String(po.id)] = po; });
 
           const localMap = {};
-          poList.forEach(po => { if (po.id) localMap[po.id] = po; });
+          poList.forEach(po => { if (po.id != null) localMap[String(po.id)] = po; });
 
           // Status priority: approved > voided > pending
           const statusRank = { approved: 3, voided: 2, pending: 1 };
@@ -2310,7 +2262,9 @@ function pullViaScript(silent = false) {
             const local = localMap[id];
             if (!local) { merged.push(cloud); return; }
             if (!cloud) { merged.push(local); return; }
-            // Keep whichever has higher status rank (approved beats pending)
+            // If this PO was modified locally within the grace period, ALWAYS keep local
+            if (isRecentlyModifiedLocally(id)) { merged.push(local); return; }
+            // Otherwise, keep whichever has higher status rank (approved beats pending)
             const cloudRank = statusRank[cloud.status] || 0;
             const localRank = statusRank[local.status] || 0;
             merged.push(cloudRank >= localRank ? cloud : local);
