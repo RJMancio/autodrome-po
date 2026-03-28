@@ -23,14 +23,14 @@
 
   body {
     font-family: 'Barlow', sans-serif;
-    background: #eef0f5;
+    background: linear-gradient(135deg, #eef0f5 0%, #e4e8f0 100%);
     color: var(--text);
     min-height: 100vh;
   }
 
   /* ── NAV ── */
   .nav {
-    background: var(--blue);
+    background: linear-gradient(135deg, #1a3a6b 0%, #142e55 100%);
     padding: 0 20px;
     display: flex;
     align-items: center;
@@ -39,7 +39,7 @@
     position: sticky;
     top: 0;
     z-index: 100;
-    box-shadow: 0 2px 12px rgba(0,0,0,0.25);
+    box-shadow: 0 2px 16px rgba(0,0,0,0.3);
   }
   .nav-brand {
     font-family: 'Barlow Condensed', sans-serif;
@@ -85,10 +85,11 @@
   /* ── CARD ── */
   .card {
     background: white;
-    border-radius: 12px;
+    border-radius: 14px;
     padding: 24px;
-    box-shadow: 0 2px 12px rgba(0,0,0,0.07);
+    box-shadow: 0 1px 3px rgba(0,0,0,0.04), 0 4px 16px rgba(0,0,0,0.06);
     margin-bottom: 20px;
+    border: 1px solid rgba(0,0,0,0.03);
   }
 
   .section-title {
@@ -98,9 +99,9 @@
     letter-spacing: 1.5px;
     text-transform: uppercase;
     color: white;
-    background: var(--blue);
-    padding: 6px 12px;
-    border-radius: 4px;
+    background: linear-gradient(135deg, #1e4278 0%, var(--blue) 100%);
+    padding: 6px 14px;
+    border-radius: 6px;
     margin-bottom: 16px;
     display: inline-block;
   }
@@ -260,12 +261,15 @@
     letter-spacing: 0.5px;
     transition: all 0.2s;
   }
-  .btn-primary { background: var(--blue); color: white; }
-  .btn-primary:hover { background: #122d57; transform: translateY(-1px); box-shadow: 0 4px 12px rgba(26,58,107,0.3); }
-  .btn-success { background: #27ae60; color: white; }
-  .btn-success:hover { background: #219a52; }
-  .btn-danger { background: var(--red); color: white; }
-  .btn-danger:hover { background: #a93226; }
+  .btn-primary { background: linear-gradient(135deg, #1e4278 0%, var(--blue) 100%); color: white; }
+  .btn-primary:hover { background: linear-gradient(135deg, #122d57 0%, #1a3a6b 100%); transform: translateY(-1px); box-shadow: 0 4px 16px rgba(26,58,107,0.35); }
+  .btn-primary:active { transform: translateY(0); box-shadow: 0 2px 8px rgba(26,58,107,0.2); }
+  .btn-success { background: linear-gradient(135deg, #2ebd6b 0%, #27ae60 100%); color: white; }
+  .btn-success:hover { background: linear-gradient(135deg, #219a52 0%, #1e8d49 100%); transform: translateY(-1px); box-shadow: 0 4px 12px rgba(39,174,96,0.3); }
+  .btn-success:active { transform: translateY(0); }
+  .btn-danger { background: linear-gradient(135deg, #d44637 0%, var(--red) 100%); color: white; }
+  .btn-danger:hover { background: linear-gradient(135deg, #a93226 0%, #b33527 100%); transform: translateY(-1px); box-shadow: 0 4px 12px rgba(192,57,43,0.3); }
+  .btn-danger:active { transform: translateY(0); }
   .btn-outline { background: transparent; border: 1.5px solid var(--border); color: var(--text); }
   .btn-outline:hover { border-color: var(--blue); color: var(--blue); }
   .btn-full { width: 100%; margin-top: 8px; }
@@ -273,17 +277,19 @@
   /* ── PENDING LIST ── */
   .po-card {
     background: white;
-    border-radius: 10px;
+    border-radius: 12px;
     border: 1.5px solid var(--border);
     padding: 16px 18px;
     margin-bottom: 12px;
     cursor: pointer;
-    transition: all 0.2s;
+    transition: all 0.25s ease;
     display: flex;
     justify-content: space-between;
     align-items: center;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.03);
   }
-  .po-card:hover { border-color: var(--blue); box-shadow: 0 4px 16px rgba(26,58,107,0.1); }
+  .po-card:hover { border-color: var(--blue); box-shadow: 0 4px 20px rgba(26,58,107,0.12); transform: translateY(-1px); }
+  .po-card:active { transform: translateY(0); box-shadow: 0 2px 8px rgba(26,58,107,0.08); }
   .po-card-info .po-num {
     font-family: 'Barlow Condensed', sans-serif;
     font-size: 18px;
@@ -326,6 +332,8 @@
     position: fixed;
     inset: 0;
     background: rgba(0,0,0,0.6);
+    backdrop-filter: blur(2px);
+    -webkit-backdrop-filter: blur(2px);
     z-index: 200;
     align-items: flex-end;
     justify-content: center;
@@ -339,6 +347,7 @@
     max-width: 720px;
     max-height: 90vh;
     overflow-y: auto;
+    box-shadow: 0 -4px 40px rgba(0,0,0,0.15);
   }
   .modal-title {
     font-family: 'Barlow Condensed', sans-serif;
@@ -369,16 +378,18 @@
     margin-bottom: 8px;
   }
   #sigCanvas {
-    border: 2px solid var(--border);
-    border-radius: 8px;
+    border: 2px dashed var(--border);
+    border-radius: 10px;
     width: 100%;
     height: 160px;
     touch-action: none;
     cursor: crosshair;
-    background: white;
+    background: #fafbfd;
     display: block;
+    transition: border-color 0.2s, background 0.2s, box-shadow 0.2s;
   }
-  #sigCanvas.has-sig { border-color: var(--blue); }
+  #sigCanvas:hover { border-color: #b8c0cc; background: #f5f7fb; }
+  #sigCanvas.has-sig { border-color: var(--blue); border-style: solid; background: white; box-shadow: 0 0 0 3px rgba(26,58,107,0.08); }
   .sig-actions { display: flex; gap: 8px; margin-top: 8px; margin-bottom: 16px; }
 
   .modal-footer { display: flex; gap: 10px; }
@@ -503,10 +514,12 @@
     font-size: 14px;
     font-weight: 600;
     z-index: 300;
-    transition: transform 0.35s cubic-bezier(0.34, 1.56, 0.64, 1);
+    transition: transform 0.35s cubic-bezier(0.34, 1.56, 0.64, 1), opacity 0.35s ease;
     white-space: nowrap;
+    box-shadow: 0 4px 20px rgba(0,0,0,0.2);
+    opacity: 0;
   }
-  .toast.show { transform: translateX(-50%) translateY(0); }
+  .toast.show { transform: translateX(-50%) translateY(0); opacity: 1; }
 
   /* ── MOBILE — 600px and below ── */
   @media (max-width: 600px) {
@@ -1068,8 +1081,7 @@ const { jsPDF } = window.jspdf;
 let poList = [];
 let currentApproveId = null;
 let itemCount = 0;
-let isDrawing = false;
-let lastX = 0, lastY = 0;
+// (sigCanvas drawing state is now local inside initCanvas closure)
 
 // PIN — default is 1234
 let MANAGER_PIN = '1234';
@@ -1868,13 +1880,14 @@ function openApprove(id) {
 
   document.getElementById('sig-modal').classList.add('open');
   clearSig();
-  setTimeout(resizeCanvas, 50);
+  // Use rAF to ensure the modal is rendered before measuring canvas
+  requestAnimationFrame(() => { requestAnimationFrame(resizeCanvas); });
 }
 
 function switchToDrawMode() {
   document.getElementById('default-sig-banner').style.display = 'none';
   document.getElementById('draw-sig-section').style.display = 'block';
-  setTimeout(resizeCanvas, 50);
+  requestAnimationFrame(() => { requestAnimationFrame(resizeCanvas); });
 }
 
 function uploadDefaultSig(e) {
@@ -1896,19 +1909,22 @@ function uploadDefaultSig(e) {
 function closeModal() {
   document.getElementById('sig-modal').classList.remove('open');
   currentApproveId = null;
+  _sigDrawing = false;
 }
 
-// ── CANVAS SIGNATURE ──
+// ── CANVAS SIGNATURE (rebuilt from scratch — Pointer Events API) ──
+// All drawing state is local to initCanvas closure. No globals needed.
+let _sigDrawing = false; // exposed only for clearSig/closeModal reset
+
 function resizeCanvas() {
   const canvas = document.getElementById('sigCanvas');
+  if (!canvas) return;
   const ctx = canvas.getContext('2d');
   const rect = canvas.getBoundingClientRect();
-  if (rect.width === 0) return;
-  const dpr = window.devicePixelRatio || 1;
-  canvas.width = rect.width * dpr;
-  canvas.height = rect.height * dpr;
-  ctx.setTransform(1, 0, 0, 1, 0, 0);
-  ctx.scale(dpr, dpr);
+  if (rect.width === 0 || rect.height === 0) return;
+  // NO DPR scaling — keep canvas pixels = CSS pixels for simple 1:1 mapping
+  canvas.width = rect.width;
+  canvas.height = rect.height;
   ctx.strokeStyle = '#1a3a6b';
   ctx.lineWidth = 2.5;
   ctx.lineCap = 'round';
@@ -1919,49 +1935,71 @@ function initCanvas() {
   const canvas = document.getElementById('sigCanvas');
   const ctx = canvas.getContext('2d');
 
-  // pendingStart holds raw clientX/Y from touchstart.
-  // lastX/lastY are NOT set in start() — they are set on the very first
-  // draw() call using the canvas position AT THAT MOMENT (after the bottom
-  // sheet animation has settled). This eliminates the stray line caused by
-  // getBoundingClientRect() returning a mid-animation canvas position in
-  // start(), while draw() sees the final post-animation position.
-  let pendingStart = null;
+  // Local state — completely isolated from globals
+  let drawing = false;
+  let lx = 0, ly = 0;
 
-  function start(e) {
+  function getPos(e) {
+    const r = canvas.getBoundingClientRect();
+    return {
+      x: e.clientX - r.left,
+      y: e.clientY - r.top
+    };
+  }
+
+  function onDown(e) {
     e.preventDefault();
-    ctx.strokeStyle = '#1a3a6b'; ctx.lineWidth = 2.5;
-    ctx.lineCap = 'round'; ctx.lineJoin = 'round';
-    isDrawing = true;
-    const src = e.touches ? e.touches[0] : e;
-    pendingStart = { clientX: src.clientX, clientY: src.clientY };
+    // Ensure canvas dimensions match layout (handles modal just-opened case)
+    const r = canvas.getBoundingClientRect();
+    if (r.width > 0 && (canvas.width !== Math.round(r.width) || canvas.height !== Math.round(r.height))) {
+      canvas.width = r.width;
+      canvas.height = r.height;
+    }
+    ctx.strokeStyle = '#1a3a6b';
+    ctx.lineWidth = 2.5;
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
+
+    drawing = true;
+    _sigDrawing = true;
+    const pos = getPos(e);
+    lx = pos.x;
+    ly = pos.y;
+
+    // Capture pointer so we get move/up even if finger leaves canvas
+    canvas.setPointerCapture(e.pointerId);
+
     canvas.classList.add('has-sig');
     document.getElementById('save-sig-btn').style.display = 'inline-block';
   }
-  function draw(e) {
-    if (!isDrawing) return; e.preventDefault();
-    const r = canvas.getBoundingClientRect();
-    const src = e.touches ? e.touches[0] : e;
-    const x = src.clientX - r.left;
-    const y = src.clientY - r.top;
-    if (pendingStart) {
-      // First draw of this stroke: set lastX/lastY from the saved touch
-      // coords but using the CURRENT canvas rect (post-animation).
-      lastX = pendingStart.clientX - r.left;
-      lastY = pendingStart.clientY - r.top;
-      pendingStart = null;
-    }
-    ctx.beginPath(); ctx.moveTo(lastX, lastY); ctx.lineTo(x, y); ctx.stroke();
-    lastX = x; lastY = y;
+
+  function onMove(e) {
+    if (!drawing) return;
+    e.preventDefault();
+    const pos = getPos(e);
+    ctx.beginPath();
+    ctx.moveTo(lx, ly);
+    ctx.lineTo(pos.x, pos.y);
+    ctx.stroke();
+    lx = pos.x;
+    ly = pos.y;
   }
-  function stop() { isDrawing = false; pendingStart = null; }
-  canvas.addEventListener('mousedown', start);
-  canvas.addEventListener('mousemove', draw);
-  canvas.addEventListener('mouseup', stop);
-  canvas.addEventListener('mouseleave', stop);
-  canvas.addEventListener('touchstart', start, { passive: false });
-  canvas.addEventListener('touchmove', draw, { passive: false });
-  canvas.addEventListener('touchend', stop);
-  canvas.addEventListener('touchcancel', stop);
+
+  function onUp(e) {
+    drawing = false;
+    _sigDrawing = false;
+    canvas.releasePointerCapture(e.pointerId);
+  }
+
+  // Pointer Events API — unified mouse + touch, no stray lines
+  canvas.addEventListener('pointerdown', onDown);
+  canvas.addEventListener('pointermove', onMove);
+  canvas.addEventListener('pointerup', onUp);
+  canvas.addEventListener('pointercancel', onUp);
+  canvas.addEventListener('pointerleave', function() {
+    drawing = false;
+    _sigDrawing = false;
+  });
 }
 
 function clearSig() {
@@ -1972,6 +2010,7 @@ function clearSig() {
   ctx.lineWidth = 2.5;
   ctx.lineCap = 'round';
   ctx.lineJoin = 'round';
+  _sigDrawing = false;
   canvas.classList.remove('has-sig');
   document.getElementById('save-sig-btn').style.display = 'none';
 }
@@ -2144,6 +2183,21 @@ function loadSyncConfig() {
       if (syncEnabled) pullFromSheet(true);
     }, 30000);
   }
+
+  // Mobile fix: sync when page regains focus (setInterval is throttled/killed
+  // when mobile browsers background the tab)
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible' && syncEnabled && syncUrl) {
+      // Small delay to let network reconnect after waking
+      setTimeout(() => pullFromSheet(true), 500);
+    }
+  });
+  // Also sync on window focus (covers more browsers)
+  window.addEventListener('focus', () => {
+    if (syncEnabled && syncUrl) {
+      setTimeout(() => pullFromSheet(true), 500);
+    }
+  });
 }
 
 function toggleSyncSetup() {
@@ -2200,9 +2254,11 @@ async function pushToSheet(action, po, includePDF = false) {
       payload.pdf = btoa(binary);
     }
     // Use no-cors for POST — Apps Script accepts it
+    // keepalive: true ensures the request survives mobile tab backgrounding
     await fetch(syncUrl, {
       method: 'POST',
       mode: 'no-cors',
+      keepalive: true,
       headers: { 'Content-Type': 'text/plain' },
       body: JSON.stringify(payload)
     });
@@ -2214,7 +2270,7 @@ async function pushDeleteToSheet(id) {
   if (!syncEnabled || !syncUrl) return;
   try {
     await fetch(syncUrl, {
-      method: 'POST', mode: 'no-cors',
+      method: 'POST', mode: 'no-cors', keepalive: true,
       headers: { 'Content-Type': 'text/plain' },
       body: JSON.stringify({ action: 'delete', id })
     });
@@ -2275,7 +2331,7 @@ function pullViaScript(silent = false) {
     script.src = syncUrl + '?callback=' + cbName + '&t=' + Date.now();
     script.onerror = () => { delete window[cbName]; resolve(); };
     document.head.appendChild(script);
-    setTimeout(() => { delete window[cbName]; resolve(); }, 8000);
+    setTimeout(() => { delete window[cbName]; resolve(); }, 15000);
   });
 }
 
