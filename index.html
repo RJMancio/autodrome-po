@@ -1919,35 +1919,41 @@ function initCanvas() {
   const canvas = document.getElementById('sigCanvas');
   const ctx = canvas.getContext('2d');
 
-  // getPos returns CSS pixel coords — resizeCanvas() called on modal open
-  // already sets canvas.width = rect.width * dpr and ctx.scale(dpr, dpr),
-  // so drawing with raw CSS coords maps correctly to physical pixels.
-  // Do NOT add any resize logic here — it would undo that DPR scaling.
-  function getPos(e) {
-    const r = canvas.getBoundingClientRect();
-    const src = e.touches ? e.touches[0] : e;
-    return {
-      x: (src.clientX - r.left),
-      y: (src.clientY - r.top)
-    };
-  }
+  // pendingStart holds raw clientX/Y from touchstart.
+  // lastX/lastY are NOT set in start() — they are set on the very first
+  // draw() call using the canvas position AT THAT MOMENT (after the bottom
+  // sheet animation has settled). This eliminates the stray line caused by
+  // getBoundingClientRect() returning a mid-animation canvas position in
+  // start(), while draw() sees the final post-animation position.
+  let pendingStart = null;
+
   function start(e) {
     e.preventDefault();
     ctx.strokeStyle = '#1a3a6b'; ctx.lineWidth = 2.5;
     ctx.lineCap = 'round'; ctx.lineJoin = 'round';
     isDrawing = true;
-    const pos = getPos(e);
-    lastX = pos.x; lastY = pos.y;
+    const src = e.touches ? e.touches[0] : e;
+    pendingStart = { clientX: src.clientX, clientY: src.clientY };
     canvas.classList.add('has-sig');
     document.getElementById('save-sig-btn').style.display = 'inline-block';
   }
   function draw(e) {
     if (!isDrawing) return; e.preventDefault();
-    const pos = getPos(e);
-    ctx.beginPath(); ctx.moveTo(lastX, lastY); ctx.lineTo(pos.x, pos.y); ctx.stroke();
-    lastX = pos.x; lastY = pos.y;
+    const r = canvas.getBoundingClientRect();
+    const src = e.touches ? e.touches[0] : e;
+    const x = src.clientX - r.left;
+    const y = src.clientY - r.top;
+    if (pendingStart) {
+      // First draw of this stroke: set lastX/lastY from the saved touch
+      // coords but using the CURRENT canvas rect (post-animation).
+      lastX = pendingStart.clientX - r.left;
+      lastY = pendingStart.clientY - r.top;
+      pendingStart = null;
+    }
+    ctx.beginPath(); ctx.moveTo(lastX, lastY); ctx.lineTo(x, y); ctx.stroke();
+    lastX = x; lastY = y;
   }
-  function stop() { isDrawing = false; }
+  function stop() { isDrawing = false; pendingStart = null; }
   canvas.addEventListener('mousedown', start);
   canvas.addEventListener('mousemove', draw);
   canvas.addEventListener('mouseup', stop);
@@ -1955,6 +1961,7 @@ function initCanvas() {
   canvas.addEventListener('touchstart', start, { passive: false });
   canvas.addEventListener('touchmove', draw, { passive: false });
   canvas.addEventListener('touchend', stop);
+  canvas.addEventListener('touchcancel', stop);
 }
 
 function clearSig() {
