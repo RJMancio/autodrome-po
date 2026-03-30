@@ -1424,7 +1424,6 @@ function submitPO() {
     po.preparedBy = preparedBy; po.items = items; po.grandTotal = grandTotal;
     if (empSig) po.empSig = empSig;
     save();
-    markLocallyModified(po.id);
     pushToSheet('update', po);
     editingPOId = null;
     resetForm();
@@ -1432,7 +1431,7 @@ function submitPO() {
     updateBadge();
     showToast('✓ PO updated successfully!');
     showPage('pending');
-    setTimeout(() => pullFromSheet(true), 5000);
+    setTimeout(() => pullFromSheet(), 2000);
   } else {
     // ── NEW PO ──
     const po = {
@@ -1447,14 +1446,13 @@ function submitPO() {
     };
     poList.push(po);
     save();
-    markLocallyModified(po.id);
     pushToSheet('submit', po);
     showToast('✓ PO submitted successfully!');
     resetForm();
     renderPending();
     updateBadge();
     showPage('pending');
-    setTimeout(() => pullFromSheet(true), 5000);
+    setTimeout(() => pullFromSheet(), 2000);
   }
 }
 
@@ -1771,7 +1769,6 @@ function confirmVoid() {
   po.voidedAt = new Date().toISOString();
   po.voidReason = reason;
   save();
-  markLocallyModified(po.id);
   pushToSheet('void', po);
 
   closeVoidModal();
@@ -1779,7 +1776,7 @@ function confirmVoid() {
   renderVoided();
   showToast('PO #' + po.poNumber + ' has been voided.', '#c0392b');
   showPage('voided');
-  setTimeout(() => pullFromSheet(true), 5000);
+  setTimeout(() => pullFromSheet(), 2000);
 }
 
 // ── PIN LOGIC ──
@@ -2092,7 +2089,6 @@ async function approvePO() {
   const po = poList.find(p => p.id === currentApproveId);
   po.status = 'approved'; po.approvedAt = new Date().toISOString(); po.approverSig = sigData;
   save();
-  markLocallyModified(po.id);
   pushToSheet('approve', po, true);
   closeModal(); renderPending(); renderApproved(); updateBadge();
   showToast('✓ PO Approved!'); showPage('approved');
@@ -2101,29 +2097,13 @@ async function approvePO() {
     await uploadToGDrive(po);
   }
   // Pull after delay so other devices see the change (grace period protects local)
-  setTimeout(() => pullFromSheet(true), 5000);
+  setTimeout(() => pullFromSheet(), 2000);
 }
 
 // ── GOOGLE SYNC ENGINE ──
 const SYNC_KEY = 'autodrome_sync_url';
 let syncUrl = '';
 let syncEnabled = false;
-
-// Track recently modified POs so cloud can't overwrite them during sync.
-// Maps PO id (as string) → timestamp when modified locally.
-const _recentLocalMods = {};
-const LOCAL_MOD_GRACE_SEC = 15; // seconds to protect local changes
-
-function markLocallyModified(poId) {
-  _recentLocalMods[String(poId)] = Date.now();
-}
-function isRecentlyModifiedLocally(poId) {
-  const ts = _recentLocalMods[String(poId)];
-  if (!ts) return false;
-  if (Date.now() - ts < LOCAL_MOD_GRACE_SEC * 1000) return true;
-  delete _recentLocalMods[String(poId)]; // expired
-  return false;
-}
 
 function loadSyncConfig() {
   try { syncUrl = localStorage.getItem(SYNC_KEY) || ''; } catch(e) {}
@@ -2138,21 +2118,6 @@ function loadSyncConfig() {
       if (syncEnabled) pullFromSheet(true);
     }, 30000);
   }
-
-  // Mobile fix: sync when page regains focus (setInterval is throttled/killed
-  // when mobile browsers background the tab)
-  document.addEventListener('visibilitychange', () => {
-    if (document.visibilityState === 'visible' && syncEnabled && syncUrl) {
-      // Small delay to let network reconnect after waking
-      setTimeout(() => pullFromSheet(true), 500);
-    }
-  });
-  // Also sync on window focus (covers more browsers)
-  window.addEventListener('focus', () => {
-    if (syncEnabled && syncUrl) {
-      setTimeout(() => pullFromSheet(true), 500);
-    }
-  });
 }
 
 function toggleSyncSetup() {
@@ -2245,13 +2210,13 @@ function pullViaScript(silent = false) {
     window[cbName] = function(json) {
       try {
         if (json.ok && Array.isArray(json.data) && json.data.length > 0) {
-          // Smart merge: compare cloud vs local, keep the "better" version.
-          // All IDs are coerced to strings to avoid type-mismatch (number vs string).
+          // Smart merge: for each PO from cloud, only use it if
+          // it's newer than or not present in local data
           const cloudMap = {};
-          json.data.forEach(po => { if (po.id != null) cloudMap[String(po.id)] = po; });
+          json.data.forEach(po => { if (po.id) cloudMap[po.id] = po; });
 
           const localMap = {};
-          poList.forEach(po => { if (po.id != null) localMap[String(po.id)] = po; });
+          poList.forEach(po => { if (po.id) localMap[po.id] = po; });
 
           // Status priority: approved > voided > pending
           const statusRank = { approved: 3, voided: 2, pending: 1 };
@@ -2263,9 +2228,7 @@ function pullViaScript(silent = false) {
             const local = localMap[id];
             if (!local) { merged.push(cloud); return; }
             if (!cloud) { merged.push(local); return; }
-            // If this PO was modified locally within the grace period, ALWAYS keep local
-            if (isRecentlyModifiedLocally(id)) { merged.push(local); return; }
-            // Otherwise, keep whichever has higher status rank (approved beats pending)
+            // Keep whichever has higher status rank (approved beats pending)
             const cloudRank = statusRank[cloud.status] || 0;
             const localRank = statusRank[local.status] || 0;
             merged.push(cloudRank >= localRank ? cloud : local);
@@ -2286,7 +2249,7 @@ function pullViaScript(silent = false) {
     script.src = syncUrl + '?callback=' + cbName + '&t=' + Date.now();
     script.onerror = () => { delete window[cbName]; resolve(); };
     document.head.appendChild(script);
-    setTimeout(() => { delete window[cbName]; resolve(); }, 15000);
+    setTimeout(() => { delete window[cbName]; resolve(); }, 8000);
   });
 }
 
