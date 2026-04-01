@@ -2265,298 +2265,339 @@ function buildPDF(po) {
   const doc = new jsPDF({ unit: 'mm', format: 'a4' });
   const W = 210, ml = 14, mr = 14;
   const cw = W - ml - mr;
-  let y;
 
-  // ── Grayscale palette ──
-  const black  = [20, 20, 20];
-  const gray1  = [90, 90, 90];
-  const gray2  = [150, 150, 150];
-  const gray3  = [210, 210, 210];
-  const gray4  = [245, 245, 245];
-  const gray5  = [250, 250, 250];
-  const white  = [255, 255, 255];
+  // ── Colour palette ──
+  const blue      = [26, 58, 107];   // #1a3a6b  (brand navy)
+  const orange    = [244, 169, 70];  // #f4a946  (brand orange)
+  const blueLight = [235, 241, 251]; // soft blue tint for alternating rows
+  const white     = [255, 255, 255];
+  const textDark  = [30,  30,  30];
+  const textMid   = [80,  80,  80];
+  const textLight = [130, 130, 130];
 
-  // ══════════════════════════════════════════
-  // HEADER — plain white, no background box
-  // ══════════════════════════════════════════
-  y = 16;
+  // ─────────────────────────────────────────────────────────────
+  // HEADER BAR  (full width, navy)
+  // ─────────────────────────────────────────────────────────────
+  const hdrH = 28;
+  doc.setFillColor(...blue);
+  doc.rect(0, 0, W, hdrH, 'F');
 
-  // Logo — full color, left side
+  // Orange accent strip below header
+  doc.setFillColor(...orange);
+  doc.rect(0, hdrH, W, 2.5, 'F');
+
+  // Logo (left side of header)
   if (companyLogo) {
-    try {
-      const fmt = companyLogo.startsWith('data:image/png') ? 'PNG' : 'JPEG';
-      doc.addImage(companyLogo, fmt, ml, 6, 70, 22, undefined, 'FAST');
-    } catch(e) {
-      doc.setFont('helvetica', 'bold');
-      doc.setFontSize(14);
-      doc.setTextColor(...black);
-      doc.text('AUTODROME QUICK SERVICE', ml, 18);
-    }
+    try { doc.addImage(companyLogo, 'PNG', ml, 3, 40, 22); } catch(e) {}
+  } else {
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(14);
+    doc.setTextColor(...white);
+    doc.text('AUTODROME', ml, 14);
+    doc.setFontSize(7);
+    doc.setFont('helvetica', 'normal');
+    doc.text('QUICK SERVICE', ml, 19);
   }
 
-  // "PURCHASE ORDER" — right side, dark text
+  // "PURCHASE ORDER" right-aligned in header
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(18);
-  doc.setTextColor(...black);
+  doc.setTextColor(...white);
   doc.text('PURCHASE ORDER', W - mr, 14, { align: 'right' });
 
-  doc.setFont('helvetica', 'normal');
-  doc.setFontSize(8);
-  doc.setTextColor(...gray2);
-  doc.text('Gov. M. Cuenco Ave., Nasipit Talamban, Cebu City', W - mr, 20, { align: 'right' });
-
-  // G2R Industries Inc. — bold red, under the logo
-  doc.setFont('helvetica', 'bold');
-  doc.setFontSize(8);
-  doc.setTextColor(180, 0, 0);
-  doc.text('G2R INDUSTRIES INC.', ml, 32);
-
-  y = 32;
-
-  y = 48;
-
-  // ══════════════════════════════════════════
-  // META — Bill To (left) + PO box (right)
-  // ══════════════════════════════════════════
-  doc.setFont('helvetica', 'bold');
-  doc.setFontSize(7);
-  doc.setTextColor(...gray2);
-  doc.text('BILL TO', ml, y - 6);
-
-  doc.setFont('helvetica', 'bold');
-  doc.setFontSize(11);
-  doc.setTextColor(...black);
-  doc.text(po.company || '—', ml, y);
-
-  y += 5;
-  doc.setFont('helvetica', 'normal');
-  doc.setFontSize(8.5);
-  doc.setTextColor(...gray1);
-
-  if (po.attn)    { doc.text('Attn: ' + po.attn, ml, y); y += 4.5; }
-  if (po.contact) { doc.text('Tel: ' + po.contact, ml, y); y += 4.5; }
-  if (po.address) {
-    const words = po.address.split(' ');
-    let line = '';
-    for (const w of words) {
-      if ((line + ' ' + w).trim().length > 45) {
-        doc.text(line.trim(), ml, y); y += 4;
-        line = w;
-      } else { line = (line + ' ' + w).trim(); }
-    }
-    if (line) { doc.text(line, ml, y); y += 4; }
-  }
-
-  // PO number / date — rounded box
-  const rightX = ml + cw * 0.60;
-  const rightW = cw * 0.40;
-
-  doc.setFillColor(...gray5);
-  doc.setDrawColor(...gray3);
-  doc.setLineWidth(0.3);
-  doc.roundedRect(rightX, 40, rightW, 26, 3, 3, 'FD');
-
-  doc.setFont('helvetica', 'bold');
-  doc.setFontSize(7);
-  doc.setTextColor(...gray2);
-  doc.text('PO NUMBER', rightX + 5, 48);
-  doc.text('DATE', rightX + rightW - 5, 48, { align: 'right' });
-
-  doc.setFont('helvetica', 'bold');
-  doc.setFontSize(14);
-  doc.setTextColor(...black);
-  doc.text('#' + po.poNumber, rightX + 5, 55);
-
+  // PO Number below title
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(9);
-  doc.setTextColor(...gray1);
-  doc.text(formatDate(po.date), rightX + rightW - 5, 55, { align: 'right' });
+  doc.setTextColor(...orange);
+  doc.text(`#${po.poNumber}`, W - mr, 22, { align: 'right' });
 
-  if (po.submittedAt) {
-    doc.setFontSize(7.5);
-    doc.setTextColor(...gray2);
-    doc.text('Submitted: ' + formatDate(po.submittedAt.split('T')[0]), rightX + 5, 62);
-  }
+  // ─────────────────────────────────────────────────────────────
+  // INFO SECTION  – two boxes side-by-side
+  // ─────────────────────────────────────────────────────────────
+  let y = hdrH + 2.5 + 6;          // start below orange strip + gap
+  const boxH       = 38;
+  const halfW      = cw / 2 - 3;   // each box width
+  const leftX      = ml;
+  const rightX     = ml + halfW + 6;
+  const boxRowH    = 7;
 
-  // ══════════════════════════════════════════
-  // TABLE
-  // ══════════════════════════════════════════
-  y = 78;
+  // Helper – draw a labelled info box with a blue header bar
+  function drawInfoBox(x, bw, title, rows) {
+    const labelH = 6.5;
+    // Blue header
+    doc.setFillColor(...blue);
+    doc.rect(x, y, bw, labelH, 'F');
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(8);
+    doc.setTextColor(...white);
+    doc.text(title, x + 3, y + 4.5);
 
-  const numW   = 12;
-  const qtyW   = 18;
-  const uomW   = 20;
-  const priceW = 36;
-  const totalW = 36;
-  const descW  = cw - numW - qtyW - uomW - priceW - totalW;
+    // Body background
+    doc.setFillColor(...blueLight);
+    doc.rect(x, y + labelH, bw, boxH - labelH, 'F');
+    // Border
+    doc.setDrawColor(...blue);
+    doc.setLineWidth(0.4);
+    doc.rect(x, y, bw, boxH, 'S');
 
-  const col = {
-    num:   ml,
-    desc:  ml + numW,
-    qty:   ml + numW + descW,
-    uom:   ml + numW + descW + qtyW,
-    price: ml + numW + descW + qtyW + uomW,
-    total: ml + cw
-  };
-  const rowH = 9;
-
-  const php = (n) => 'PHP ' + Number(n).toLocaleString('en-PH', {minimumFractionDigits:2, maximumFractionDigits:2});
-
-  // Table header — light gray, dark text (no heavy ink)
-  doc.setFillColor(...gray4);
-  doc.setDrawColor(...gray3);
-  doc.setLineWidth(0.3);
-  doc.rect(ml, y, cw, rowH + 1, 'FD');
-
-  doc.setFont('helvetica', 'bold');
-  doc.setFontSize(7.5);
-  doc.setTextColor(...gray1);
-  const headers = ['#', 'DESCRIPTION', 'QTY', 'UOM', 'UNIT PRICE', 'AMOUNT'];
-  const hx = [
-    col.num + numW/2,
-    col.desc + 3,
-    col.qty + qtyW/2,
-    col.uom + uomW/2,
-    col.price + priceW/2,
-    col.total - 3
-  ];
-  const ha = ['center','left','center','center','center','right'];
-  headers.forEach((h, i) => doc.text(h, hx[i], y + 7, { align: ha[i] }));
-
-  y += rowH + 1;
-
-  // Item rows
-  const minRows = Math.max(po.items.length, 6);
-  for (let i = 0; i < minRows; i++) {
-    const item = po.items[i];
-    doc.setFillColor(...(i % 2 === 0 ? white : gray5));
-    doc.setDrawColor(...gray3);
-    doc.setLineWidth(0.15);
-    doc.rect(ml, y, cw, rowH, 'FD');
-
-    [col.desc, col.qty, col.uom, col.price].forEach(cx => {
-      doc.setDrawColor(225, 225, 225);
-      doc.line(cx, y, cx, y + rowH);
-    });
-
-    if (item) {
-      doc.setFont('helvetica', 'normal');
-      doc.setFontSize(8.5);
-      doc.setTextColor(...black);
-      doc.text(String(i + 1), col.num + numW/2, y + 6, {align:'center'});
-
-      const maxDescChars = Math.floor(descW / 2.0);
-      const descText = item.desc && item.desc.length > maxDescChars
-        ? item.desc.substring(0, maxDescChars - 3) + '...' : (item.desc || '');
-      doc.text(descText, col.desc + 3, y + 6);
-
-      doc.text(String(item.qty), col.qty + qtyW/2, y + 6, {align:'center'});
-      doc.text(item.uom || 'PC', col.uom + uomW/2, y + 6, {align:'center'});
-
-      doc.setFontSize(8);
-      doc.setTextColor(...gray1);
-      doc.text(php(item.price), col.price + priceW/2, y + 6, {align:'center'});
-
+    // Row content
+    let ry = y + labelH + 5;
+    rows.forEach(([label, value]) => {
       doc.setFont('helvetica', 'bold');
-      doc.setFontSize(8.5);
-      doc.setTextColor(...black);
-      doc.text(php(item.total), col.total - 3, y + 6, {align:'right'});
-    }
+      doc.setFontSize(7.5);
+      doc.setTextColor(...textMid);
+      doc.text(label, x + 3, ry);
+      doc.setFont('helvetica', 'normal');
+      doc.setTextColor(...textDark);
+      const maxW = bw - 6;
+      const lines = doc.splitTextToSize(value || '—', maxW);
+      doc.text(lines[0], x + 3, ry + 4);
+      ry += boxRowH;
+    });
+  }
+
+  // VENDOR box (left)
+  drawInfoBox(leftX, halfW, 'VENDOR / SUPPLIER', [
+    ['Company', po.company || ''],
+    ['Contact', po.contact || ''],
+    ['Phone',   po.phone   || ''],
+    ['Address', po.address || ''],
+  ]);
+
+  // PO DETAILS box (right)
+  const fmtDate = d => {
+    if (!d) return '—';
+    const dt = new Date(d + 'T00:00:00');
+    return dt.toLocaleDateString('en-US', { year:'numeric', month:'short', day:'numeric' });
+  };
+  drawInfoBox(rightX, halfW, 'PO DETAILS', [
+    ['PO Number',    po.poNumber  || ''],
+    ['Date',         fmtDate(po.date)],
+    ['Prepared By',  po.preparedBy || ''],
+    ['Ship Via',     po.shipVia   || ''],
+  ]);
+
+  y += boxH + 7;
+
+  // ─────────────────────────────────────────────────────────────
+  // ITEMS TABLE
+  // ─────────────────────────────────────────────────────────────
+  const cols = [
+    { label:'#',           x: ml,              w: 8 },
+    { label:'Description', x: ml + 8,          w: 74 },
+    { label:'Qty',         x: ml + 82,         w: 20 },
+    { label:'Unit Price',  x: ml + 102,        w: 30 },
+    { label:'Total',       x: ml + 132,        w: 50 },
+  ];
+
+  // Table header
+  const thH = 8;
+  doc.setFillColor(...blue);
+  doc.rect(ml, y, cw, thH, 'F');
+  cols.forEach(c => {
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(8);
+    doc.setTextColor(...white);
+    const align = (c.label === 'Qty' || c.label === 'Unit Price' || c.label === 'Total') ? 'right' : 'left';
+    const tx = align === 'right' ? c.x + c.w - 2 : c.x + 2;
+    doc.text(c.label, tx, y + 5.5, { align });
+  });
+
+  // Header bottom border (orange accent)
+  doc.setDrawColor(...orange);
+  doc.setLineWidth(0.5);
+  doc.line(ml, y + thH, ml + cw, y + thH);
+
+  y += thH;
+
+  // Rows
+  const items  = po.items || [];
+  const rowH   = 8;
+  let subtotal = 0;
+
+  items.forEach((item, i) => {
+    const rowFill = i % 2 === 0 ? white : blueLight;
+    doc.setFillColor(...rowFill);
+    doc.rect(ml, y, cw, rowH, 'F');
+
+    // Subtle row divider
+    doc.setDrawColor(210, 220, 235);
+    doc.setLineWidth(0.15);
+    doc.line(ml, y + rowH, ml + cw, y + rowH);
+
+    const qty   = parseFloat(item.qty)        || 0;
+    const price = parseFloat(item.unitPrice)  || 0;
+    const total = qty * price;
+    subtotal   += total;
+
+    const fmt = n => n.toLocaleString('en-PH', { minimumFractionDigits:2, maximumFractionDigits:2 });
+
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(8);
+    doc.setTextColor(...textDark);
+
+    // #
+    doc.text(String(i + 1), cols[0].x + 2, y + 5.5);
+    // Description
+    const descLines = doc.splitTextToSize(item.description || '', cols[1].w - 4);
+    doc.text(descLines[0], cols[1].x + 2, y + 5.5);
+    // Qty
+    doc.text(fmt(qty), cols[2].x + cols[2].w - 2, y + 5.5, { align:'right' });
+    // Unit Price
+    doc.text(fmt(price), cols[3].x + cols[3].w - 2, y + 5.5, { align:'right' });
+    // Total
+    doc.setFont('helvetica', 'bold');
+    doc.text(fmt(total), cols[4].x + cols[4].w - 2, y + 5.5, { align:'right' });
+
     y += rowH;
-  }
+  });
 
-  // ── Total — rounded box matching PO number style ──
-  y += 5;
-  const totalBoxW = cw * 0.45;
-  const totalBoxX = ml + cw - totalBoxW;
-  doc.setFillColor(...gray5);
-  doc.setDrawColor(...gray3);
-  doc.setLineWidth(0.3);
-  doc.roundedRect(totalBoxX, y, totalBoxW, 18, 3, 3, 'FD');
+  // Table outer border
+  doc.setDrawColor(...blue);
+  doc.setLineWidth(0.4);
+  doc.rect(ml, y - items.length * rowH - thH, cw, items.length * rowH + thH, 'S');
 
-  doc.setFont('helvetica', 'bold');
-  doc.setFontSize(7.5);
-  doc.setTextColor(...gray2);
-  doc.text('TOTAL AMOUNT', totalBoxX + totalBoxW - 5, y + 7, { align: 'right' });
+  // ── Subtotal / Tax / Total rows ──────────────────────────────
+  const tax      = parseFloat(po.tax) || 0;
+  const taxAmt   = subtotal * (tax / 100);
+  const grandTotal = subtotal + taxAmt;
+  const fmt2 = n => n.toLocaleString('en-PH', { minimumFractionDigits:2, maximumFractionDigits:2 });
 
-  doc.setFont('helvetica', 'bold');
-  doc.setFontSize(14);
-  doc.setTextColor(...black);
-  doc.text(php(po.grandTotal), totalBoxX + totalBoxW - 5, y + 14.5, { align: 'right' });
+  const summaryRows = [
+    ['Subtotal', fmt2(subtotal)],
+    tax > 0 ? [`Tax (${tax}%)`, fmt2(taxAmt)] : null,
+  ].filter(Boolean);
 
-  y += 30;
+  const summaryX = ml + cw * 0.55;
+  const summaryW = cw * 0.45;
 
-  // ══════════════════════════════════════════
-  // TERMS
-  // ══════════════════════════════════════════
-  doc.setFont('helvetica', 'normal');
-  doc.setFontSize(7.5);
-  doc.setTextColor(...gray2);
-  doc.text('This Purchase Order is subject to the terms and conditions agreed upon between Autodrome Quick Service and the vendor.', ml, y);
-  doc.text('Goods and services must not be delivered without a signed copy of this PO. Unauthorized deliveries will not be honored.', ml, y + 4.5);
+  summaryRows.forEach(([label, val]) => {
+    doc.setFillColor(...blueLight);
+    doc.rect(summaryX, y, summaryW, 7, 'F');
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(8.5);
+    doc.setTextColor(...textMid);
+    doc.text(label, summaryX + 3, y + 5);
+    doc.setTextColor(...textDark);
+    doc.text(val, summaryX + summaryW - 2, y + 5, { align:'right' });
+    doc.setDrawColor(210, 220, 235);
+    doc.setLineWidth(0.15);
+    doc.line(summaryX, y + 7, summaryX + summaryW, y + 7);
+    y += 7;
+  });
 
-  // ══════════════════════════════════════════
-  // SIGNATURE SECTION
-  // ══════════════════════════════════════════
-  y += 16;
-  y += 12;
-
-  const sigColW = cw / 2 - 8;
-
-  // Prepared by
-  if (po.empSig) {
-    try { doc.addImage(po.empSig, 'PNG', ml, y - 16, sigColW * 0.8, 14); } catch(e) {}
-  }
+  // TOTAL AMOUNT row (navy)
+  const totalH = 9;
+  doc.setFillColor(...blue);
+  doc.rect(summaryX, y, summaryW, totalH, 'F');
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(9);
-  doc.setTextColor(...black);
-  doc.text(po.preparedBy || '', ml, y - 2);
-  doc.setDrawColor(...gray2);
-  doc.setLineWidth(0.4);
-  doc.line(ml, y, ml + sigColW, y);
-  doc.setFont('helvetica', 'normal');
-  doc.setFontSize(7.5);
-  doc.setTextColor(...gray2);
-  doc.text('Prepared by', ml, y + 4.5);
+  doc.setTextColor(...white);
+  doc.text('TOTAL AMOUNT', summaryX + 3, y + 6);
+  doc.text(`PHP ${fmt2(grandTotal)}`, summaryX + summaryW - 2, y + 6, { align:'right' });
+  y += totalH + 2;
 
-  // Approved by
-  const sigX = ml + cw - sigColW;
-  if (po.approverSig) {
-    try { doc.addImage(po.approverSig, 'PNG', sigX, y - 16, sigColW * 0.8, 14); } catch(e) {}
-  }
-  doc.setFont('helvetica', 'bold');
-  doc.setFontSize(9);
-  doc.setTextColor(...black);
-  doc.text('Weistin RJ V. Mancio', sigX, y - 2);
-  doc.setDrawColor(...gray2);
+  // Border around summary block
+  doc.setDrawColor(...blue);
   doc.setLineWidth(0.4);
-  doc.line(sigX, y, sigX + sigColW, y);
-  doc.setFont('helvetica', 'normal');
-  doc.setFontSize(7.5);
-  doc.setTextColor(...gray2);
-  doc.text('Approved by', sigX, y + 4.5);
+  doc.rect(summaryX, y - summaryRows.length * 7 - totalH - 2, summaryW, summaryRows.length * 7 + totalH, 'S');
 
-  if (po.approvedAt) {
-    const dateStr = formatDate(po.approvedAt.split('T')[0]);
-    const timeStr = new Date(po.approvedAt).toLocaleTimeString('en-PH', { hour: '2-digit', minute: '2-digit', hour12: true });
+  y += 6;
+
+  // ─────────────────────────────────────────────────────────────
+  // NOTES / TERMS
+  // ─────────────────────────────────────────────────────────────
+  if (po.notes) {
+    doc.setFillColor(...blueLight);
+    doc.rect(ml, y, cw, 16, 'F');
+    doc.setDrawColor(...blue);
+    doc.setLineWidth(0.4);
+    doc.rect(ml, y, cw, 16, 'S');
+    doc.setFont('helvetica', 'bold');
     doc.setFontSize(7.5);
-    doc.setTextColor(...gray1);
-    doc.text(dateStr + ' · ' + timeStr, sigX + sigColW, y + 4.5, { align: 'right' });
+    doc.setTextColor(...blue);
+    doc.text('NOTES / TERMS', ml + 3, y + 5);
+    doc.setFont('helvetica', 'normal');
+    doc.setTextColor(...textDark);
+    const noteLines = doc.splitTextToSize(po.notes, cw - 6);
+    doc.text(noteLines.slice(0, 2), ml + 3, y + 10);
+    y += 20;
   }
 
-  // ══════════════════════════════════════════
-  // FOOTER — just a hairline + small text
-  // ══════════════════════════════════════════
-  doc.setDrawColor(...gray3);
-  doc.setLineWidth(0.2);
-  doc.line(ml, 282, W - mr, 282);
+  y += 2;
+
+  // ─────────────────────────────────────────────────────────────
+  // SIGNATURE SECTION
+  // ─────────────────────────────────────────────────────────────
+  const sigBoxW = (cw - 10) / 2;
+  const sigBoxH = 28;
+
+  function drawSigBox(bx, title, name, dateSigned, sigData) {
+    // Blue header bar
+    doc.setFillColor(...blue);
+    doc.rect(bx, y, sigBoxW, 6, 'F');
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(7.5);
+    doc.setTextColor(...white);
+    doc.text(title, bx + 3, y + 4.3);
+
+    // Body
+    doc.setFillColor(...blueLight);
+    doc.rect(bx, y + 6, sigBoxW, sigBoxH - 6, 'F');
+    doc.setDrawColor(...blue);
+    doc.setLineWidth(0.4);
+    doc.rect(bx, y, sigBoxW, sigBoxH, 'S');
+
+    // Signature image or blank line
+    if (sigData) {
+      try { doc.addImage(sigData, 'PNG', bx + 3, y + 8, sigBoxW - 6, 12); } catch(e) {}
+    } else {
+      doc.setDrawColor(170, 190, 220);
+      doc.setLineWidth(0.3);
+      doc.line(bx + 3, y + 19, bx + sigBoxW - 3, y + 19);
+    }
+
+    // Name & date
+    doc.setTextColor(...textMid);
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(7);
+    doc.text(name   || 'Signature over printed name', bx + 3, y + 23);
+    doc.text(dateSigned ? `Date: ${dateSigned}` : 'Date:', bx + 3, y + 27);
+  }
+
+  const sigLeft  = ml;
+  const sigRight = ml + sigBoxW + 10;
+  drawSigBox(sigLeft,  'PREPARED BY', po.preparedBy || '', po.date, null);
+  drawSigBox(sigRight, 'APPROVED BY', po.approvedBy || '',
+    po.approvedAt ? new Date(po.approvedAt).toLocaleDateString('en-US', { year:'numeric', month:'short', day:'numeric' }) : '',
+    po.signature  || null);
+
+  y += sigBoxH + 4;
+
+  // ─────────────────────────────────────────────────────────────
+  // VENDOR / SUPPLIER LOGO  (right of signature boxes, if any)
+  // ─────────────────────────────────────────────────────────────
+  if (vendorLogo) {
+    try { doc.addImage(vendorLogo, 'PNG', W - mr - 36, y - sigBoxH - 2, 32, 14); } catch(e) {}
+  }
+
+  // ─────────────────────────────────────────────────────────────
+  // FOOTER BAR
+  // ─────────────────────────────────────────────────────────────
+  // Orange accent line above footer
+  doc.setFillColor(...orange);
+  doc.rect(0, 284, W, 1.5, 'F');
+  // Navy footer
+  doc.setFillColor(...blue);
+  doc.rect(0, 285.5, W, 11.5, 'F');
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(7);
-  doc.setTextColor(...gray2);
-  doc.text('Autodrome Quick Service  ·  G2R Industries Inc.  ·  09663198666 / 09673546661  ·  Tel: 326-3943', W/2, 287, { align: 'center' });
+  doc.setTextColor(...white);
+  doc.text('Autodrome Quick Service  ·  G2R Industries Inc.  ·  09663198666 / 09673546661  ·  Tel: 326-3943', W / 2, 292, { align:'center' });
 
   return doc;
 }
+
 
 // ── UTILS ──
 function showPage(name) {
