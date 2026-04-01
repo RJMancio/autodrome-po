@@ -2257,8 +2257,13 @@ function pullViaScript(silent = false) {
 function downloadPDF(id) {
   const po = poList.find(p => p.id === id);
   if (!po) return;
-  buildPDF(po).save(`PO-${po.poNumber}-${po.company.replace(/\s+/g,'-')}.pdf`);
-  showToast('✓ PDF downloaded!');
+  try {
+    buildPDF(po).save(`PO-${po.poNumber}-${po.company.replace(/\s+/g,'-')}.pdf`);
+    showToast('✓ PDF downloaded!');
+  } catch(err) {
+    console.error('PDF generation error:', err);
+    showToast('PDF error: ' + err.message, '#c0392b');
+  }
 }
 
 function buildPDF(po) {
@@ -2439,8 +2444,8 @@ function buildPDF(po) {
     // #
     doc.text(String(i + 1), cols[0].x + 2, y + 5.5);
     // Description
-    const descLines = doc.splitTextToSize(item.description || '', cols[1].w - 4);
-    doc.text(descLines[0], cols[1].x + 2, y + 5.5);
+    const descLines = doc.splitTextToSize(item.description || ' ', cols[1].w - 4);
+    doc.text(descLines[0] || ' ', cols[1].x + 2, y + 5.5);
     // Qty
     doc.text(fmt(qty), cols[2].x + cols[2].w - 2, y + 5.5, { align:'right' });
     // Unit Price
