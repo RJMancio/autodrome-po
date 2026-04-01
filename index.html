@@ -2575,13 +2575,6 @@ function buildPDF(po) {
   y += sigBoxH + 4;
 
   // ─────────────────────────────────────────────────────────────
-  // VENDOR / SUPPLIER LOGO  (right of signature boxes, if any)
-  // ─────────────────────────────────────────────────────────────
-  if (vendorLogo) {
-    try { doc.addImage(vendorLogo, 'PNG', W - mr - 36, y - sigBoxH - 2, 32, 14); } catch(e) {}
-  }
-
-  // ─────────────────────────────────────────────────────────────
   // FOOTER BAR
   // ─────────────────────────────────────────────────────────────
   // Orange accent line above footer
