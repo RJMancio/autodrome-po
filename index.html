@@ -2089,7 +2089,7 @@ async function approvePO() {
   const po = poList.find(p => p.id === currentApproveId);
   po.status = 'approved'; po.approvedAt = new Date().toISOString(); po.approverSig = sigData;
   save();
-  pushToSheet('approve', po, true);
+  pushToSheet('approve', po, false); // don't include PDF — payload too large for reliable mobile push
   closeModal(); renderPending(); renderApproved(); updateBadge();
   showToast('✓ PO Approved!'); showPage('approved');
   if (gdriveConfig.url && gdriveConfig.folder) {
