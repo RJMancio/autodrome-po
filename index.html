@@ -2272,329 +2272,307 @@ function buildPDF(po) {
   const cw = W - ml - mr;
 
   // ── Colour palette ──
-  const blue      = [26, 58, 107];   // #1a3a6b  (brand navy)
-  const orange    = [244, 169, 70];  // #f4a946  (brand orange)
-  const blueLight = [235, 241, 251]; // soft blue tint for alternating rows
+  const blue      = [26, 58, 107];
+  const blueLight = [235, 241, 251];
   const white     = [255, 255, 255];
   const textDark  = [30,  30,  30];
   const textMid   = [80,  80,  80];
-  const textLight = [130, 130, 130];
+  const textLight = [140, 140, 140];
+
+  const php = n => 'PHP ' + Number(n).toLocaleString('en-PH', { minimumFractionDigits:2, maximumFractionDigits:2 });
 
   // ─────────────────────────────────────────────────────────────
-  // HEADER BAR  (full width, navy)
+  // HEADER — white background, clean layout
   // ─────────────────────────────────────────────────────────────
-  const hdrH = 28;
-  doc.setFillColor(...blue);
-  doc.rect(0, 0, W, hdrH, 'F');
+  let y = 16;
 
-  // Orange accent strip below header
-  doc.setFillColor(...orange);
-  doc.rect(0, hdrH, W, 2.5, 'F');
-
-  // Logo (left side of header)
+  // Logo (left side)
   if (companyLogo) {
-    try { doc.addImage(companyLogo, 'PNG', ml, 3, 40, 22); } catch(e) {}
-  } else {
-    doc.setFont('helvetica', 'bold');
-    doc.setFontSize(14);
-    doc.setTextColor(...white);
-    doc.text('AUTODROME', ml, 14);
-    doc.setFontSize(7);
-    doc.setFont('helvetica', 'normal');
-    doc.text('QUICK SERVICE', ml, 19);
+    try {
+      const fmt = companyLogo.startsWith('data:image/png') ? 'PNG' : 'JPEG';
+      doc.addImage(companyLogo, fmt, ml, 6, 70, 22, undefined, 'FAST');
+    } catch(e) {
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(14);
+      doc.setTextColor(...textDark);
+      doc.text('AUTODROME QUICK SERVICE', ml, 18);
+    }
   }
 
-  // "PURCHASE ORDER" right-aligned in header
+  // "PURCHASE ORDER" right side
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(18);
-  doc.setTextColor(...white);
+  doc.setTextColor(...blue);
   doc.text('PURCHASE ORDER', W - mr, 14, { align: 'right' });
 
-  // PO Number below title
   doc.setFont('helvetica', 'normal');
-  doc.setFontSize(9);
-  doc.setTextColor(...orange);
-  doc.text(`#${po.poNumber}`, W - mr, 22, { align: 'right' });
+  doc.setFontSize(8);
+  doc.setTextColor(...textLight);
+  doc.text('Gov. M. Cuenco Ave., Nasipit Talamban, Cebu City', W - mr, 20, { align: 'right' });
+
+  // G2R Industries Inc.
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(8);
+  doc.setTextColor(180, 0, 0);
+  doc.text('G2R INDUSTRIES INC.', ml, 32);
+
+  // Thin separator line
+  doc.setDrawColor(210, 220, 235);
+  doc.setLineWidth(0.3);
+  doc.line(ml, 35, W - mr, 35);
 
   // ─────────────────────────────────────────────────────────────
-  // INFO SECTION  – two boxes side-by-side
+  // INFO SECTION — frameless, two columns
   // ─────────────────────────────────────────────────────────────
-  let y = hdrH + 2.5 + 6;          // start below orange strip + gap
-  const boxH       = 38;
-  const halfW      = cw / 2 - 3;   // each box width
-  const leftX      = ml;
-  const rightX     = ml + halfW + 6;
-  const boxRowH    = 7;
+  y = 42;
 
-  // Helper – draw a labelled info box with a blue header bar
-  function drawInfoBox(x, bw, title, rows) {
-    const labelH = 6.5;
-    // Blue header
-    doc.setFillColor(...blue);
-    doc.rect(x, y, bw, labelH, 'F');
-    doc.setFont('helvetica', 'bold');
-    doc.setFontSize(8);
-    doc.setTextColor(...white);
-    doc.text(title, x + 3, y + 4.5);
+  // VENDOR (left column)
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(7);
+  doc.setTextColor(...blue);
+  doc.text('BILL TO', ml, y);
 
-    // Body background
-    doc.setFillColor(...blueLight);
-    doc.rect(x, y + labelH, bw, boxH - labelH, 'F');
-    // Border
-    doc.setDrawColor(...blue);
-    doc.setLineWidth(0.4);
-    doc.rect(x, y, bw, boxH, 'S');
+  y += 4;
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(11);
+  doc.setTextColor(...textDark);
+  doc.text(po.company || '—', ml, y);
 
-    // Row content
-    let ry = y + labelH + 5;
-    rows.forEach(([label, value]) => {
-      doc.setFont('helvetica', 'bold');
-      doc.setFontSize(7.5);
-      doc.setTextColor(...textMid);
-      doc.text(label, x + 3, ry);
-      doc.setFont('helvetica', 'normal');
-      doc.setTextColor(...textDark);
-      const maxW = bw - 6;
-      const lines = doc.splitTextToSize(value || '—', maxW);
-      doc.text(lines[0], x + 3, ry + 4);
-      ry += boxRowH;
-    });
+  y += 5;
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(8.5);
+  doc.setTextColor(...textMid);
+  if (po.attn)    { doc.text('Attn: ' + po.attn, ml, y); y += 4.5; }
+  if (po.contact) { doc.text('Tel: ' + po.contact, ml, y); y += 4.5; }
+  if (po.address) {
+    const addrLines = doc.splitTextToSize(po.address, cw * 0.50);
+    addrLines.slice(0, 3).forEach(line => { doc.text(line, ml, y); y += 4; });
   }
 
-  // VENDOR box (left)
-  drawInfoBox(leftX, halfW, 'VENDOR / SUPPLIER', [
-    ['Company', po.company || ''],
-    ['Contact', po.contact || ''],
-    ['Phone',   po.phone   || ''],
-    ['Address', po.address || ''],
-  ]);
+  // PO DETAILS (right column — frameless)
+  const rightX = ml + cw * 0.60;
+  const rightW = cw * 0.40;
+  let ry = 42;
 
-  // PO DETAILS box (right)
-  const fmtDate = d => {
-    if (!d) return '—';
-    const dt = new Date(d + 'T00:00:00');
-    return dt.toLocaleDateString('en-US', { year:'numeric', month:'short', day:'numeric' });
-  };
-  drawInfoBox(rightX, halfW, 'PO DETAILS', [
-    ['PO Number',    po.poNumber  || ''],
-    ['Date',         fmtDate(po.date)],
-    ['Prepared By',  po.preparedBy || ''],
-    ['Ship Via',     po.shipVia   || ''],
-  ]);
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(7);
+  doc.setTextColor(...blue);
+  doc.text('PO DETAILS', rightX, ry);
 
-  y += boxH + 7;
+  ry += 5;
+
+  // Detail rows helper
+  function detailRow(label, value) {
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(7.5);
+    doc.setTextColor(...textLight);
+    doc.text(label, rightX, ry);
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(9);
+    doc.setTextColor(...textDark);
+    doc.text(value || '—', rightX + rightW, ry, { align: 'right' });
+    ry += 6;
+  }
+
+  detailRow('PO Number', '#' + (po.poNumber || ''));
+  detailRow('Date', formatDate(po.date));
+  detailRow('Prepared By', po.preparedBy || '');
+  if (po.submittedAt) {
+    detailRow('Submitted', formatDate(po.submittedAt.split('T')[0]));
+  }
+
+  y = Math.max(y, ry) + 6;
 
   // ─────────────────────────────────────────────────────────────
   // ITEMS TABLE
   // ─────────────────────────────────────────────────────────────
-  const cols = [
-    { label:'#',           x: ml,              w: 8 },
-    { label:'Description', x: ml + 8,          w: 74 },
-    { label:'Qty',         x: ml + 82,         w: 20 },
-    { label:'Unit Price',  x: ml + 102,        w: 30 },
-    { label:'Total',       x: ml + 132,        w: 50 },
-  ];
+  const numW   = 10;
+  const qtyW   = 18;
+  const uomW   = 18;
+  const priceW = 32;
+  const totalW = 34;
+  const descW  = cw - numW - qtyW - uomW - priceW - totalW;
 
-  // Table header
-  const thH = 8;
+  const col = {
+    num:   ml,
+    desc:  ml + numW,
+    qty:   ml + numW + descW,
+    uom:   ml + numW + descW + qtyW,
+    price: ml + numW + descW + qtyW + uomW,
+    total: ml + cw,
+  };
+  const rowH = 8;
+
+  // Table header — blue row with white text
   doc.setFillColor(...blue);
-  doc.rect(ml, y, cw, thH, 'F');
-  cols.forEach(c => {
-    doc.setFont('helvetica', 'bold');
-    doc.setFontSize(8);
-    doc.setTextColor(...white);
-    const align = (c.label === 'Qty' || c.label === 'Unit Price' || c.label === 'Total') ? 'right' : 'left';
-    const tx = align === 'right' ? c.x + c.w - 2 : c.x + 2;
-    doc.text(c.label, tx, y + 5.5, { align });
-  });
+  doc.rect(ml, y, cw, rowH + 1, 'F');
 
-  // Header bottom border (orange accent)
-  doc.setDrawColor(...orange);
-  doc.setLineWidth(0.5);
-  doc.line(ml, y + thH, ml + cw, y + thH);
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(7.5);
+  doc.setTextColor(...white);
 
-  y += thH;
+  const headers = ['#', 'DESCRIPTION', 'QTY', 'UOM', 'UNIT PRICE', 'AMOUNT'];
+  const hx = [
+    col.num + numW / 2,
+    col.desc + 3,
+    col.qty + qtyW / 2,
+    col.uom + uomW / 2,
+    col.price + priceW / 2,
+    col.total - 3,
+  ];
+  const ha = ['center', 'left', 'center', 'center', 'center', 'right'];
+  headers.forEach((h, i) => doc.text(h, hx[i], y + 6, { align: ha[i] }));
 
-  // Rows
-  const items  = po.items || [];
-  const rowH   = 8;
-  let subtotal = 0;
+  y += rowH + 1;
 
-  items.forEach((item, i) => {
-    const rowFill = i % 2 === 0 ? white : blueLight;
-    doc.setFillColor(...rowFill);
+  // Item rows
+  const items = po.items || [];
+  const minRows = Math.max(items.length, 4);
+
+  for (let i = 0; i < minRows; i++) {
+    const item = items[i];
+    const fill = i % 2 === 0 ? white : blueLight;
+    doc.setFillColor(...fill);
     doc.rect(ml, y, cw, rowH, 'F');
 
     // Subtle row divider
-    doc.setDrawColor(210, 220, 235);
+    doc.setDrawColor(220, 225, 240);
     doc.setLineWidth(0.15);
     doc.line(ml, y + rowH, ml + cw, y + rowH);
 
-    const qty   = parseFloat(item.qty)        || 0;
-    const price = parseFloat(item.unitPrice)  || 0;
-    const total = qty * price;
-    subtotal   += total;
+    if (item) {
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(8.5);
+      doc.setTextColor(...textDark);
+      doc.text(String(i + 1), col.num + numW / 2, y + 5.5, { align: 'center' });
 
-    const fmt = n => n.toLocaleString('en-PH', { minimumFractionDigits:2, maximumFractionDigits:2 });
+      // Description — truncate if too long
+      const maxDescChars = Math.floor(descW / 2.0);
+      const descText = item.desc && item.desc.length > maxDescChars
+        ? item.desc.substring(0, maxDescChars - 3) + '...' : (item.desc || '');
+      doc.text(descText, col.desc + 3, y + 5.5);
 
-    doc.setFont('helvetica', 'normal');
-    doc.setFontSize(8);
-    doc.setTextColor(...textDark);
+      doc.text(String(item.qty || ''), col.qty + qtyW / 2, y + 5.5, { align: 'center' });
+      doc.text(item.uom || 'PC', col.uom + uomW / 2, y + 5.5, { align: 'center' });
 
-    // #
-    doc.text(String(i + 1), cols[0].x + 2, y + 5.5);
-    // Description
-    const descLines = doc.splitTextToSize(item.description || ' ', cols[1].w - 4);
-    doc.text(descLines[0] || ' ', cols[1].x + 2, y + 5.5);
-    // Qty
-    doc.text(fmt(qty), cols[2].x + cols[2].w - 2, y + 5.5, { align:'right' });
-    // Unit Price
-    doc.text(fmt(price), cols[3].x + cols[3].w - 2, y + 5.5, { align:'right' });
-    // Total
-    doc.setFont('helvetica', 'bold');
-    doc.text(fmt(total), cols[4].x + cols[4].w - 2, y + 5.5, { align:'right' });
+      doc.setFontSize(8);
+      doc.setTextColor(...textMid);
+      doc.text(php(item.price || 0), col.price + priceW / 2, y + 5.5, { align: 'center' });
+
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(8.5);
+      doc.setTextColor(...textDark);
+      doc.text(php(item.total || 0), col.total - 3, y + 5.5, { align: 'right' });
+    }
 
     y += rowH;
-  });
+  }
 
-  // Table outer border
+  // Table bottom border
   doc.setDrawColor(...blue);
-  doc.setLineWidth(0.4);
-  doc.rect(ml, y - items.length * rowH - thH, cw, items.length * rowH + thH, 'S');
+  doc.setLineWidth(0.3);
+  doc.line(ml, y, ml + cw, y);
 
-  // ── Subtotal / Tax / Total rows ──────────────────────────────
-  const tax      = parseFloat(po.tax) || 0;
-  const taxAmt   = subtotal * (tax / 100);
-  const grandTotal = subtotal + taxAmt;
-  const fmt2 = n => n.toLocaleString('en-PH', { minimumFractionDigits:2, maximumFractionDigits:2 });
+  y += 2;
 
-  const summaryRows = [
-    ['Subtotal', fmt2(subtotal)],
-    tax > 0 ? [`Tax (${tax}%)`, fmt2(taxAmt)] : null,
-  ].filter(Boolean);
-
+  // ── Grand Total row ──────────────────────────────────────────
   const summaryX = ml + cw * 0.55;
   const summaryW = cw * 0.45;
 
-  summaryRows.forEach(([label, val]) => {
-    doc.setFillColor(...blueLight);
-    doc.rect(summaryX, y, summaryW, 7, 'F');
-    doc.setFont('helvetica', 'normal');
-    doc.setFontSize(8.5);
-    doc.setTextColor(...textMid);
-    doc.text(label, summaryX + 3, y + 5);
-    doc.setTextColor(...textDark);
-    doc.text(val, summaryX + summaryW - 2, y + 5, { align:'right' });
-    doc.setDrawColor(210, 220, 235);
-    doc.setLineWidth(0.15);
-    doc.line(summaryX, y + 7, summaryX + summaryW, y + 7);
-    y += 7;
-  });
-
-  // TOTAL AMOUNT row (navy)
-  const totalH = 9;
   doc.setFillColor(...blue);
-  doc.rect(summaryX, y, summaryW, totalH, 'F');
+  doc.rect(summaryX, y, summaryW, 9, 'F');
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(9);
   doc.setTextColor(...white);
   doc.text('TOTAL AMOUNT', summaryX + 3, y + 6);
-  doc.text(`PHP ${fmt2(grandTotal)}`, summaryX + summaryW - 2, y + 6, { align:'right' });
-  y += totalH + 2;
+  doc.text(php(po.grandTotal || 0), summaryX + summaryW - 3, y + 6, { align: 'right' });
 
-  // Border around summary block
-  doc.setDrawColor(...blue);
-  doc.setLineWidth(0.4);
-  doc.rect(summaryX, y - summaryRows.length * 7 - totalH - 2, summaryW, summaryRows.length * 7 + totalH, 'S');
-
-  y += 6;
+  y += 14;
 
   // ─────────────────────────────────────────────────────────────
-  // NOTES / TERMS
+  // TERMS
   // ─────────────────────────────────────────────────────────────
-  if (po.notes) {
-    doc.setFillColor(...blueLight);
-    doc.rect(ml, y, cw, 16, 'F');
-    doc.setDrawColor(...blue);
-    doc.setLineWidth(0.4);
-    doc.rect(ml, y, cw, 16, 'S');
-    doc.setFont('helvetica', 'bold');
-    doc.setFontSize(7.5);
-    doc.setTextColor(...blue);
-    doc.text('NOTES / TERMS', ml + 3, y + 5);
-    doc.setFont('helvetica', 'normal');
-    doc.setTextColor(...textDark);
-    const noteLines = doc.splitTextToSize(po.notes, cw - 6);
-    doc.text(noteLines.slice(0, 2), ml + 3, y + 10);
-    y += 20;
-  }
-
-  y += 2;
-
-  // ─────────────────────────────────────────────────────────────
-  // SIGNATURE SECTION
-  // ─────────────────────────────────────────────────────────────
-  const sigBoxW = (cw - 10) / 2;
-  const sigBoxH = 28;
-
-  function drawSigBox(bx, title, name, dateSigned, sigData) {
-    // Blue header bar
-    doc.setFillColor(...blue);
-    doc.rect(bx, y, sigBoxW, 6, 'F');
-    doc.setFont('helvetica', 'bold');
-    doc.setFontSize(7.5);
-    doc.setTextColor(...white);
-    doc.text(title, bx + 3, y + 4.3);
-
-    // Body
-    doc.setFillColor(...blueLight);
-    doc.rect(bx, y + 6, sigBoxW, sigBoxH - 6, 'F');
-    doc.setDrawColor(...blue);
-    doc.setLineWidth(0.4);
-    doc.rect(bx, y, sigBoxW, sigBoxH, 'S');
-
-    // Signature image or blank line
-    if (sigData) {
-      try { doc.addImage(sigData, 'PNG', bx + 3, y + 8, sigBoxW - 6, 12); } catch(e) {}
-    } else {
-      doc.setDrawColor(170, 190, 220);
-      doc.setLineWidth(0.3);
-      doc.line(bx + 3, y + 19, bx + sigBoxW - 3, y + 19);
-    }
-
-    // Name & date
-    doc.setTextColor(...textMid);
-    doc.setFont('helvetica', 'normal');
-    doc.setFontSize(7);
-    doc.text(name   || 'Signature over printed name', bx + 3, y + 23);
-    doc.text(dateSigned ? `Date: ${dateSigned}` : 'Date:', bx + 3, y + 27);
-  }
-
-  const sigLeft  = ml;
-  const sigRight = ml + sigBoxW + 10;
-  drawSigBox(sigLeft,  'PREPARED BY', po.preparedBy || '', po.date, null);
-  drawSigBox(sigRight, 'APPROVED BY', po.approvedBy || '',
-    po.approvedAt ? new Date(po.approvedAt).toLocaleDateString('en-US', { year:'numeric', month:'short', day:'numeric' }) : '',
-    po.signature  || null);
-
-  y += sigBoxH + 4;
-
-  // ─────────────────────────────────────────────────────────────
-  // FOOTER BAR
-  // ─────────────────────────────────────────────────────────────
-  // Orange accent line above footer
-  doc.setFillColor(...orange);
-  doc.rect(0, 284, W, 1.5, 'F');
-  // Navy footer
-  doc.setFillColor(...blue);
-  doc.rect(0, 285.5, W, 11.5, 'F');
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(7);
-  doc.setTextColor(...white);
-  doc.text('Autodrome Quick Service  ·  G2R Industries Inc.  ·  09663198666 / 09673546661  ·  Tel: 326-3943', W / 2, 292, { align:'center' });
+  doc.setTextColor(...textLight);
+  doc.text('Goods and services must not be delivered without a signed copy of this PO. Unauthorized deliveries will not be honored.', ml, y);
+
+  y += 10;
+
+  // ─────────────────────────────────────────────────────────────
+  // SIGNATURE SECTION — frameless
+  // ─────────────────────────────────────────────────────────────
+  const sigColW = cw / 2 - 8;
+
+  // Prepared by (left)
+  if (po.empSig) {
+    try { doc.addImage(po.empSig, 'PNG', ml, y - 2, sigColW * 0.8, 14); } catch(e) {}
+    y += 12;
+  }
+
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(8);
+  doc.setTextColor(...textDark);
+  doc.text(po.preparedBy || '', ml, y);
+
+  y += 1;
+  doc.setDrawColor(...blue);
+  doc.setLineWidth(0.4);
+  doc.line(ml, y, ml + sigColW, y);
+
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(7);
+  doc.setTextColor(...textMid);
+  doc.text('Prepared by', ml, y + 4);
+
+  // Approved by (right)
+  const sigX = ml + cw - sigColW;
+  let sigY = y - 1;
+
+  // Reset sigY for approved column
+  if (po.empSig) { sigY = y - 13; } else { sigY = y - 1; }
+
+  if (po.approverSig) {
+    try { doc.addImage(po.approverSig, 'PNG', sigX, sigY - 1, sigColW * 0.8, 14); } catch(e) {}
+  }
+
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(8);
+  doc.setTextColor(...textDark);
+  doc.text('Weistin RJ V. Mancio', sigX, y);
+
+  doc.setDrawColor(...blue);
+  doc.setLineWidth(0.4);
+  doc.line(sigX, y + 1, sigX + sigColW, y + 1);
+
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(7);
+  doc.setTextColor(...textMid);
+  doc.text('Approved by', sigX, y + 5);
+
+  if (po.approvedAt) {
+    const dateStr = formatDate(po.approvedAt.split('T')[0]);
+    const timeStr = new Date(po.approvedAt).toLocaleTimeString('en-PH', { hour:'2-digit', minute:'2-digit', hour12:true });
+    doc.setFontSize(7);
+    doc.setTextColor(...textLight);
+    doc.text(dateStr + ' \u00b7 ' + timeStr, sigX + sigColW, y + 5, { align: 'right' });
+  }
+
+  // ─────────────────────────────────────────────────────────────
+  // FOOTER
+  // ─────────────────────────────────────────────────────────────
+  doc.setDrawColor(210, 220, 235);
+  doc.setLineWidth(0.3);
+  doc.line(ml, 282, W - mr, 282);
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(7);
+  doc.setTextColor(...textLight);
+  doc.text('Autodrome Quick Service  \u00b7  G2R Industries Inc.  \u00b7  09663198666 / 09673546661  \u00b7  Tel: 326-3943', W / 2, 287, { align: 'center' });
 
   return doc;
 }
+
+
 
 
 // ── UTILS ──
