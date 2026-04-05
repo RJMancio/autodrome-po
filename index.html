@@ -637,7 +637,7 @@
     <button class="nav-tab" onclick="exportData()" title="Backup all PO data">⬇ Backup</button>
     <label class="nav-tab" style="cursor:pointer;" title="Restore from backup">⬆ Restore<input type="file" accept=".json" onchange="importData(event)" style="display:none;"></label>
     <button class="nav-tab" onclick="showPage('settings')" title="Logo & Settings">⚙ Settings</button>
-    <button class="nav-tab" onclick="pullFromSheet()" title="Sync from cloud" id="sync-btn" style="display:none;">🔄 Sync</button>
+    <button class="nav-tab" onclick="fullSync()" title="Sync from cloud" id="sync-btn" style="display:none;">🔄 Sync</button>
   </div>
 </nav>
 
@@ -763,7 +763,7 @@
         Restore from Backup
         <input type="file" accept=".json" onchange="importData(event)" style="display:none;">
       </label>
-      <button class="btn btn-outline btn-full" id="mobile-sync-btn" onclick="pullFromSheet()" style="display:none;">Sync Now</button>
+      <button class="btn btn-outline btn-full" id="mobile-sync-btn" onclick="fullSync()" style="display:none;">Sync Now</button>
     </div>
   </div>
 
@@ -2096,8 +2096,28 @@ async function approvePO() {
     showToast('📁 Saving to Google Drive...', '#1a3a6b');
     await uploadToGDrive(po);
   }
-  // Pull after delay so other devices see the change (grace period protects local)
-  setTimeout(() => pullFromSheet(), 2000);
+  // Verify push reached cloud: pull after 4s, retry if needed
+  setTimeout(async () => {
+    await pullFromSheet(true);
+    const cloudPO = poList.find(p => p.id === po.id);
+    if (cloudPO && cloudPO.status !== 'approved') {
+      console.warn('[SYNC VERIFY] Cloud still pending — retrying push');
+      showToast('⏳ Re-syncing approval...', '#e67e22');
+      // Re-read from local (pull may have overwritten with stale cloud data)
+      const localApproved = JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]')
+        .find(p => p.id === po.id && p.status === 'approved');
+      if (localApproved) {
+        // Restore the approved version locally
+        const idx = poList.findIndex(p => p.id === po.id);
+        if (idx >= 0) poList[idx] = localApproved;
+        save();
+      }
+      await pushToSheet('approve', po, false);
+      setTimeout(() => pullFromSheet(true), 4000);
+    } else {
+      console.log('[SYNC VERIFY] Cloud confirmed approved');
+    }
+  }, 4000);
 }
 
 // ── GOOGLE SYNC ENGINE ──
@@ -2165,22 +2185,70 @@ function updateSyncBanner(connected) {
 // Push a single PO action to Google Sheet
 async function pushToSheet(action, po, includePDF = false) {
   if (!syncEnabled || !syncUrl) return;
-  try {
-    const payload = { action, po };
-    if (includePDF && po.approverSig) {
+
+  const payload = { action, po };
+  if (includePDF && po.approverSig) {
+    try {
       const pdfBlob = buildPDF(po).output('blob');
       const buffer = await pdfBlob.arrayBuffer();
       let binary = ''; new Uint8Array(buffer).forEach(b => binary += String.fromCharCode(b));
       payload.pdf = btoa(binary);
-    }
-    // Use no-cors for POST — Apps Script accepts it
-    await fetch(syncUrl, {
+    } catch(e) {}
+  }
+
+  const body = JSON.stringify(payload);
+  console.log('[SYNC PUSH]', action, 'id=' + po.id, 'status=' + po.status, 'size=' + body.length + 'B');
+
+  // Try CORS first (can read response), fall back to no-cors
+  let confirmed = false;
+  try {
+    const resp = await fetch(syncUrl, {
       method: 'POST',
-      mode: 'no-cors',
+      redirect: 'follow',
       headers: { 'Content-Type': 'text/plain' },
-      body: JSON.stringify(payload)
+      body: body
     });
-  } catch(e) { showToast('⚠ Sync failed — saved locally.', '#e67e22'); }
+    if (resp.ok) {
+      confirmed = true;
+      console.log('[SYNC PUSH] CORS push confirmed OK');
+    } else {
+      console.warn('[SYNC PUSH] CORS push status:', resp.status);
+    }
+  } catch(e) {
+    console.warn('[SYNC PUSH] CORS push failed, trying no-cors:', e.message);
+    // Fallback: no-cors (can't read response but still sends)
+    try {
+      await fetch(syncUrl, {
+        method: 'POST',
+        mode: 'no-cors',
+        headers: { 'Content-Type': 'text/plain' },
+        body: body
+      });
+      console.log('[SYNC PUSH] no-cors push sent (unconfirmed)');
+    } catch(e2) {
+      console.error('[SYNC PUSH] all push methods failed:', e2.message);
+      showToast('⚠ Sync failed — saved locally.', '#e67e22');
+    }
+  }
+}
+
+// Push ALL local POs to cloud (used by fullSync to ensure cloud is up to date)
+async function pushAllToSheet() {
+  if (!syncEnabled || !syncUrl) return;
+  for (const po of poList) {
+    const action = po.status === 'approved' ? 'approve' : po.status === 'voided' ? 'void' : 'submit';
+    await pushToSheet(action, po, false);
+  }
+  console.log('[SYNC] Pushed all', poList.length, 'POs to cloud');
+}
+
+// Full sync: push local changes first, then pull cloud data
+async function fullSync() {
+  if (!syncEnabled || !syncUrl) return;
+  showToast('⏳ Syncing...', '#1a3a6b');
+  await pushAllToSheet();
+  await pullFromSheet(true);
+  showToast('✓ Synced!');
 }
 
 // Push delete action
@@ -2210,6 +2278,9 @@ function pullViaScript(silent = false) {
     window[cbName] = function(json) {
       try {
         if (json.ok && Array.isArray(json.data) && json.data.length > 0) {
+          console.log('[SYNC PULL] Cloud returned', json.data.length, 'POs:',
+            json.data.map(p => p.poNumber + '=' + p.status).join(', '));
+
           // Smart merge: for each PO from cloud, only use it if
           // it's newer than or not present in local data
           const cloudMap = {};
@@ -2231,6 +2302,11 @@ function pullViaScript(silent = false) {
             // Keep whichever has higher status rank (approved beats pending)
             const cloudRank = statusRank[cloud.status] || 0;
             const localRank = statusRank[local.status] || 0;
+            const winner = cloudRank >= localRank ? 'cloud' : 'local';
+            console.log('[SYNC MERGE] PO', cloud.poNumber || local.poNumber,
+              '→ cloud=' + (cloud.status) + '(' + cloudRank + ')',
+              'local=' + (local.status) + '(' + localRank + ')',
+              '→ using', winner);
             merged.push(cloudRank >= localRank ? cloud : local);
           });
 
@@ -2239,9 +2315,10 @@ function pullViaScript(silent = false) {
           renderPending(); renderApproved(); renderVoided(); updateBadge();
           if (!silent) showToast('✓ Synced from cloud!');
         } else {
+          console.log('[SYNC PULL] Cloud empty or error:', JSON.stringify(json).substring(0, 200));
           if (!silent) showToast('✓ Cloud is empty — using local data.');
         }
-      } catch(e) {}
+      } catch(e) { console.error('[SYNC PULL] Parse error:', e); }
       delete window[cbName];
       resolve();
     };
