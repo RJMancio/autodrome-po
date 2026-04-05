@@ -891,7 +891,22 @@ function doGet(e) {
   if (!sheet) return ContentService.createTextOutput(JSON.stringify({ok:true,data:[]})).setMimeType(ContentService.MimeType.JSON);
   const rows = sheet.getDataRange().getValues();
   if (rows.length <= 1) return ContentService.createTextOutput(JSON.stringify({ok:true,data:[]})).setMimeType(ContentService.MimeType.JSON);
-  const data = rows.slice(1).map(r => JSON.parse(r[1] || '{}'));
+
+  // Deduplicate: if multiple rows share the same ID, keep the one with highest status
+  const statusRank = { approved: 3, voided: 2, pending: 1 };
+  const best = {};
+  for (let i = 1; i < rows.length; i++) {
+    try {
+      const po = JSON.parse(rows[i][1] || '{}');
+      const key = String(po.id || rows[i][0]);
+      const rank = statusRank[po.status] || 0;
+      if (!best[key] || rank > (statusRank[best[key].status] || 0)) {
+        best[key] = po;
+      }
+    } catch(ex) {}
+  }
+  const data = Object.values(best);
+
   return ContentService.createTextOutput(JSON.stringify({ok:true,data})).setMimeType(ContentService.MimeType.JSON);
 }
 
@@ -900,10 +915,11 @@ function savePOToSheet(po) {
   let sheet = ss.getSheetByName('POs');
   if (!sheet) { sheet = ss.insertSheet('POs'); sheet.appendRow(['ID','Data','PO Number','Vendor','Status','Date']); }
   const rows = sheet.getDataRange().getValues();
+  const poIdStr = String(po.id);
   for (let i = 1; i < rows.length; i++) {
-    if (rows[i][0] == po.id) { sheet.getRange(i+1,1,1,6).setValues([[po.id, JSON.stringify(po), po.poNumber, po.company, po.status, po.date]]); return; }
+    if (String(rows[i][0]) === poIdStr) { sheet.getRange(i+1,1,1,6).setValues([[poIdStr, JSON.stringify(po), po.poNumber, po.company, po.status, po.date]]); return; }
   }
-  sheet.appendRow([po.id, JSON.stringify(po), po.poNumber, po.company, po.status, po.date]);
+  sheet.appendRow([poIdStr, JSON.stringify(po), po.poNumber, po.company, po.status, po.date]);
 }
 
 function updatePOStatus(po) { savePOToSheet(po); }
@@ -912,8 +928,9 @@ function deletePOFromSheet(id) {
   const sheet = SpreadsheetApp.openById(SHEET_ID).getSheetByName('POs');
   if (!sheet) return;
   const rows = sheet.getDataRange().getValues();
+  const idStr = String(id);
   for (let i = 1; i < rows.length; i++) {
-    if (rows[i][0] == id) { sheet.deleteRow(i+1); return; }
+    if (String(rows[i][0]) === idStr) { sheet.deleteRow(i+1); return; }
   }
 }
 
@@ -2186,7 +2203,9 @@ function updateSyncBanner(connected) {
 async function pushToSheet(action, po, includePDF = false) {
   if (!syncEnabled || !syncUrl) return;
 
-  const payload = { action, po };
+  // Ensure ID is a string to avoid numeric precision issues in Google Sheets
+  const safePO = Object.assign({}, po, { id: String(po.id) });
+  const payload = { action, po: safePO };
   if (includePDF && po.approverSig) {
     try {
       const pdfBlob = buildPDF(po).output('blob');
@@ -2197,7 +2216,7 @@ async function pushToSheet(action, po, includePDF = false) {
   }
 
   const body = JSON.stringify(payload);
-  console.log('[SYNC PUSH]', action, 'id=' + po.id, 'status=' + po.status, 'size=' + body.length + 'B');
+  console.log('[SYNC PUSH]', action, 'id=' + safePO.id, '(type=' + typeof safePO.id + ')', 'status=' + safePO.status, 'size=' + body.length + 'B');
 
   // Try CORS first (can read response), fall back to no-cors
   let confirmed = false;
@@ -2258,7 +2277,7 @@ async function pushDeleteToSheet(id) {
     await fetch(syncUrl, {
       method: 'POST', mode: 'no-cors',
       headers: { 'Content-Type': 'text/plain' },
-      body: JSON.stringify({ action: 'delete', id })
+      body: JSON.stringify({ action: 'delete', id: String(id) })
     });
   } catch(e) {}
 }
@@ -2284,10 +2303,10 @@ function pullViaScript(silent = false) {
           // Smart merge: for each PO from cloud, only use it if
           // it's newer than or not present in local data
           const cloudMap = {};
-          json.data.forEach(po => { if (po.id) cloudMap[po.id] = po; });
+          json.data.forEach(po => { if (po.id) cloudMap[String(po.id)] = po; });
 
           const localMap = {};
-          poList.forEach(po => { if (po.id) localMap[po.id] = po; });
+          poList.forEach(po => { if (po.id) localMap[String(po.id)] = po; });
 
           // Status priority: approved > voided > pending
           const statusRank = { approved: 3, voided: 2, pending: 1 };
