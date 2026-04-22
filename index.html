@@ -1029,6 +1029,8 @@ function loadFromStorage() {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
     if (raw) poList = JSON.parse(raw);
+    // Normalize all IDs to strings for consistent comparison
+    poList = poList.map(po => ({ ...po, id: String(po.id) }));
   } catch(e) {
     poList = [];
   }
@@ -1311,7 +1313,7 @@ function submitPO() {
 
   if (editingPOId) {
     // ── EDIT MODE: update existing PO ──
-    const po = poList.find(p => p.id === editingPOId);
+    const po = poList.find(p => String(p.id) === String(editingPOId));
     po.date = date; po.poNumber = poNumber; po.company = company;
     po.attn = attn; po.contact = contact; po.address = address;
     po.preparedBy = preparedBy; po.items = items; po.grandTotal = grandTotal;
@@ -1327,7 +1329,7 @@ function submitPO() {
   } else {
     // ── NEW PO ──
     const po = {
-      id: Date.now(),
+      id: String(Date.now()),
       date, poNumber, company, attn, contact, address,
       preparedBy, items, grandTotal,
       empSig: empSig || null,
@@ -1459,7 +1461,7 @@ function renderApproved() {
 let detailsApproveId = null;
 
 function viewPODetails(id) {
-  const po = poList.find(p => p.id === id);
+  const po = poList.find(p => String(p.id) === String(id));
   if (!po) return;
   detailsApproveId = id;
 
@@ -1578,7 +1580,7 @@ let currentVoidId = null;
 
 // ── EDIT PO ──
 function editPO(id) {
-  const po = poList.find(p => p.id === id);
+  const po = poList.find(p => String(p.id) === String(id));
   if (!po) return;
 
   editingPOId = id;
@@ -1618,7 +1620,7 @@ function editPO(id) {
 
 // ── DELETE PO ──
 function confirmDeletePO(id) {
-  const po = poList.find(p => p.id === id);
+  const po = poList.find(p => String(p.id) === String(id));
   if (!po) return;
   if (confirm(`Delete PO #${po.poNumber} (${po.company})?\n\nThis cannot be undone.`)) {
     poList = poList.filter(p => p.id !== id);
@@ -1632,7 +1634,7 @@ function confirmDeletePO(id) {
 
 function openVoidModal(id) {
   currentVoidId = id;
-  const po = poList.find(p => p.id === id);
+  const po = poList.find(p => String(p.id) === String(id));
   document.getElementById('void-po-info').textContent = `PO #${po.poNumber} · ${po.company} · PHP ${po.grandTotal.toLocaleString('en-PH',{minimumFractionDigits:2})}`;
   document.getElementById('void-preview').innerHTML = po.items.map(i =>
     `<div class="po-preview-row"><span class="po-preview-label">${i.desc} (${i.qty} ${i.uom})</span><span>PHP ${i.total.toLocaleString('en-PH',{minimumFractionDigits:2})}</span></div>`
@@ -1656,7 +1658,7 @@ function confirmVoid() {
   if (!reason) { errEl.textContent = '⚠ Please enter a reason for voiding.'; return; }
   if (pin !== MANAGER_PIN) { errEl.textContent = '⚠ Incorrect PIN.'; document.getElementById('void-pin').value = ''; return; }
 
-  const po = poList.find(p => p.id === currentVoidId);
+  const po = poList.find(p => String(p.id) === String(currentVoidId));
   po.status = 'voided';
   po.voidedAt = new Date().toISOString();
   po.voidReason = reason;
@@ -1720,7 +1722,7 @@ function checkPIN() {
     pinBuffer = '';
     if (deleteVoidedId) {
       // Delete voided PO
-      const po = poList.find(p => p.id === deleteVoidedId);
+      const po = poList.find(p => String(p.id) === String(deleteVoidedId));
       const poNum = po ? po.poNumber : '';
       const deletedId = deleteVoidedId;
       poList = poList.filter(p => p.id !== deletedId);
@@ -1749,7 +1751,7 @@ function checkPIN() {
 // ── APPROVE MODAL ──
 function openApprove(id) {
   currentApproveId = id;
-  const po = poList.find(p => p.id === id);
+  const po = poList.find(p => String(p.id) === String(id));
   document.getElementById('modal-po-info').textContent = `PO #${po.poNumber} · ${po.company} · ${formatDate(po.date)}`;
   const preview = document.getElementById('modal-preview');
   preview.innerHTML = po.items.map(i =>
@@ -1977,7 +1979,7 @@ async function approvePO() {
     sigData = document.getElementById('sigCanvas').toDataURL('image/png');
   }
 
-  const po = poList.find(p => p.id === currentApproveId);
+  const po = poList.find(p => String(p.id) === String(currentApproveId));
   po.status = 'approved'; po.approvedAt = new Date().toISOString(); po.approverSig = sigData;
   save();
   await pushToSupabase(po);
@@ -2186,7 +2188,7 @@ function updateSyncBanner(connected) {
 
 // ── PDF ──
 function downloadPDF(id) {
-  const po = poList.find(p => p.id === id);
+  const po = poList.find(p => String(p.id) === String(id));
   if (!po) return;
   try {
     buildPDF(po).save(`PO-${po.poNumber}-${po.company.replace(/\s+/g,'-')}.pdf`);
