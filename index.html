@@ -1019,7 +1019,15 @@ const STORAGE_KEY = 'autodrome_po_data';
 // ── SAVE / LOAD ──
 function save() {
   try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(poList));
+    // Strip large base64 signature fields before saving to localStorage
+    // They are already synced to Supabase and kept in memory for the session
+    const stripped = poList.map(po => {
+      const lean = Object.assign({}, po);
+      delete lean.empSig;
+      delete lean.approverSig;
+      return lean;
+    });
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(stripped));
   } catch(e) {
     showToast('⚠ Could not save data to browser.', '#c0392b');
   }
