@@ -1632,7 +1632,7 @@ function confirmDeletePO(id) {
   const po = poList.find(p => String(p.id) === String(id));
   if (!po) return;
   if (confirm(`Delete PO #${po.poNumber} (${po.company})?\n\nThis cannot be undone.`)) {
-    poList = poList.filter(p => p.id !== id);
+    poList = poList.filter(p => String(p.id) !== String(id));
     save();
     deleteFromSupabase(id);
     renderPending();
