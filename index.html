@@ -1991,9 +1991,15 @@ async function approvePO() {
 // ── SUPABASE SYNC ENGINE ──
 const SUPABASE_URL = 'https://qhmqauyuybbnniwq.supabase.co';
 const SUPABASE_KEY = 'sb_publishable_u0d3j2Zcs8wzcyT1UfdRfA_-6Y0s27l';
-const { createClient } = supabase;
-const sb = createClient(SUPABASE_URL, SUPABASE_KEY);
-let syncEnabled = true;
+let sb = null;
+let syncEnabled = false;
+try {
+  const { createClient } = supabase;
+  sb = createClient(SUPABASE_URL, SUPABASE_KEY);
+  syncEnabled = true;
+} catch(e) {
+  console.error('[SUPABASE INIT] Failed to initialize:', e);
+}
 
 // ── OFFLINE QUEUE ──
 const OFFLINE_QUEUE_KEY = 'autodrome_offline_queue';
