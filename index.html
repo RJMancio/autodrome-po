@@ -1377,8 +1377,9 @@ function renderPending() {
     return;
   }
   list.innerHTML = pending.map(po => {
-    const submitted = new Date(po.submittedAt);
-    const dateStr = formatDate(po.submittedAt.split('T')[0]);
+    const submittedAt = po.submittedAt || po.date + 'T00:00:00.000Z';
+    const submitted = new Date(submittedAt);
+    const dateStr = formatDate(submittedAt.split('T')[0]);
     const timeStr = submitted.toLocaleTimeString('en-PH', { hour: '2-digit', minute: '2-digit', hour12: true });
     return `
     <div class="po-card" style="cursor:default;flex-direction:column;gap:12px;">
@@ -2045,6 +2046,7 @@ function poToRow(po) {
     items: po.items || [],
     grand_total: po.grandTotal || 0,
     emp_sig: po.empSig || null,
+    submitted_at: po.submittedAt || null,
     status: po.status || 'pending',
     approved_at: po.approvedAt || null,
     approver_sig: po.approverSig || null,
@@ -2066,6 +2068,7 @@ function rowToPO(row) {
     items: row.items || [],
     grandTotal: row.grand_total || 0,
     empSig: row.emp_sig || null,
+    submittedAt: row.submitted_at || new Date().toISOString(),
     status: row.status || 'pending',
     approvedAt: row.approved_at || null,
     approverSig: row.approver_sig || null,
