@@ -6,6 +6,7 @@
 <title>Autodrome PO System</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/signature_pad@4.2.0/dist/signature_pad.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <style>
   @import url('https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;600;700&family=Barlow+Condensed:wght@600;700&display=swap');
 
@@ -637,7 +638,7 @@
     <button class="nav-tab" onclick="exportData()" title="Backup all PO data">⬇ Backup</button>
     <label class="nav-tab" style="cursor:pointer;" title="Restore from backup">⬆ Restore<input type="file" accept=".json" onchange="importData(event)" style="display:none;"></label>
     <button class="nav-tab" onclick="showPage('settings')" title="Logo & Settings">⚙ Settings</button>
-    <button class="nav-tab" onclick="fullSync()" title="Sync from cloud" id="sync-btn" style="display:none;">🔄 Sync</button>
+    <button class="nav-tab" onclick="fullSync()" title="Sync from cloud" id="sync-btn">🔄 Sync</button>
   </div>
 </nav>
 
@@ -763,7 +764,7 @@
         Restore from Backup
         <input type="file" accept=".json" onchange="importData(event)" style="display:none;">
       </label>
-      <button class="btn btn-outline btn-full" id="mobile-sync-btn" onclick="fullSync()" style="display:none;">Sync Now</button>
+      <button class="btn btn-outline btn-full" id="mobile-sync-btn" onclick="fullSync()">Sync Now</button>
     </div>
   </div>
 
@@ -834,135 +835,13 @@
 
 <!-- APPROVED PAGE -->
 <div class="page" id="page-approved">
-  <div class="gdrive-banner" onclick="toggleSyncSetup()">
+  <div class="gdrive-banner" onclick="fullSync()">
     <div class="gdrive-icon">☁️</div>
     <div class="gdrive-text">
-      <div class="gdrive-title" id="sync-banner-title">Connect Google Sync — Share POs across devices</div>
-      <div class="gdrive-sub" id="sync-banner-sub">Tap to set up · Takes 10 minutes</div>
+      <div class="gdrive-title" id="sync-banner-title">⏳ Connecting to Supabase...</div>
+      <div class="gdrive-sub" id="sync-banner-sub">Setting up real-time sync</div>
     </div>
-    <div class="gdrive-arrow" id="sync-banner-arrow">›</div>
-  </div>
-
-  <div class="gdrive-setup-card" id="sync-setup-card">
-    <div style="font-family:'Barlow Condensed',sans-serif;font-size:18px;font-weight:700;color:var(--blue);margin-bottom:4px;">Google Sync Setup</div>
-    <div style="font-size:12px;color:var(--muted);margin-bottom:16px;">Do this once. You'll need to be signed in to your Gmail.</div>
-
-    <div class="setup-step">
-      <div class="setup-num">1</div>
-      <div class="setup-text">Go to <strong>sheets.google.com</strong> → Create a new blank spreadsheet → Name it <strong>Autodrome PO Database</strong> → Copy the long ID from the URL (between /d/ and /edit)</div>
-    </div>
-    <div class="setup-step">
-      <div class="setup-num">2</div>
-      <div class="setup-text">Go to <strong>drive.google.com</strong> → Create a new folder named <strong>Autodrome Approved POs</strong> → Open it → Copy the folder ID from the URL (after /folders/)</div>
-    </div>
-    <div class="setup-step">
-      <div class="setup-num">3</div>
-      <div class="setup-text">Go to <strong>script.google.com</strong> → Click <strong>New Project</strong> → Name it <strong>Autodrome Sync</strong> → Delete all existing code and paste the script below</div>
-    </div>
-
-    <div style="background:#1c2b3a;border-radius:8px;padding:12px;margin:10px 0;position:relative;">
-      <div style="font-size:10px;color:#7a8a9a;margin-bottom:6px;font-family:monospace;">Apps Script — paste this entire block</div>
-      <pre id="apps-script-code" style="font-size:10px;color:#a8d8a8;font-family:monospace;white-space:pre-wrap;margin:0;line-height:1.5;">const SHEET_ID = 'PASTE_YOUR_SHEET_ID_HERE';
-const FOLDER_ID = 'PASTE_YOUR_FOLDER_ID_HERE';
-
-function doPost(e) {
-  try {
-    const payload = JSON.parse(e.postData.contents);
-    const action = payload.action;
-
-    if (action === 'submit' || action === 'update') {
-      savePOToSheet(payload.po);
-    } else if (action === 'approve') {
-      updatePOStatus(payload.po);
-      if (payload.pdf) savePDFToDrive(payload.po, payload.pdf);
-    } else if (action === 'void') {
-      updatePOStatus(payload.po);
-    } else if (action === 'delete') {
-      deletePOFromSheet(payload.id);
-    }
-    return ContentService.createTextOutput(JSON.stringify({ok:true})).setMimeType(ContentService.MimeType.JSON);
-  } catch(err) {
-    return ContentService.createTextOutput(JSON.stringify({ok:false,error:err.toString()})).setMimeType(ContentService.MimeType.JSON);
-  }
-}
-
-function doGet(e) {
-  const sheet = SpreadsheetApp.openById(SHEET_ID).getSheetByName('POs');
-  if (!sheet) return ContentService.createTextOutput(JSON.stringify({ok:true,data:[]})).setMimeType(ContentService.MimeType.JSON);
-  const rows = sheet.getDataRange().getValues();
-  if (rows.length <= 1) return ContentService.createTextOutput(JSON.stringify({ok:true,data:[]})).setMimeType(ContentService.MimeType.JSON);
-
-  // Deduplicate: if multiple rows share the same ID, keep the one with highest status
-  const statusRank = { approved: 3, voided: 2, pending: 1 };
-  const best = {};
-  for (let i = 1; i < rows.length; i++) {
-    try {
-      const po = JSON.parse(rows[i][1] || '{}');
-      const key = String(po.id || rows[i][0]);
-      const rank = statusRank[po.status] || 0;
-      if (!best[key] || rank > (statusRank[best[key].status] || 0)) {
-        best[key] = po;
-      }
-    } catch(ex) {}
-  }
-  const data = Object.values(best);
-
-  return ContentService.createTextOutput(JSON.stringify({ok:true,data})).setMimeType(ContentService.MimeType.JSON);
-}
-
-function savePOToSheet(po) {
-  const ss = SpreadsheetApp.openById(SHEET_ID);
-  let sheet = ss.getSheetByName('POs');
-  if (!sheet) { sheet = ss.insertSheet('POs'); sheet.appendRow(['ID','Data','PO Number','Vendor','Status','Date']); }
-  const rows = sheet.getDataRange().getValues();
-  const poIdStr = String(po.id);
-  for (let i = 1; i < rows.length; i++) {
-    if (String(rows[i][0]) === poIdStr) { sheet.getRange(i+1,1,1,6).setValues([[poIdStr, JSON.stringify(po), po.poNumber, po.company, po.status, po.date]]); return; }
-  }
-  sheet.appendRow([poIdStr, JSON.stringify(po), po.poNumber, po.company, po.status, po.date]);
-}
-
-function updatePOStatus(po) { savePOToSheet(po); }
-
-function deletePOFromSheet(id) {
-  const sheet = SpreadsheetApp.openById(SHEET_ID).getSheetByName('POs');
-  if (!sheet) return;
-  const rows = sheet.getDataRange().getValues();
-  const idStr = String(id);
-  for (let i = 1; i < rows.length; i++) {
-    if (String(rows[i][0]) === idStr) { sheet.deleteRow(i+1); return; }
-  }
-}
-
-function savePDFToDrive(po, base64pdf) {
-  const bytes = Utilities.base64Decode(base64pdf);
-  const blob = Utilities.newBlob(bytes, 'application/pdf', 'PO-'+po.poNumber+'-'+po.company+'.pdf');
-  DriveApp.getFolderById(FOLDER_ID).createFile(blob);
-}</pre>
-      <button onclick="copyScript()" style="position:absolute;top:10px;right:10px;background:#0a7a4b;color:white;border:none;border-radius:6px;padding:5px 10px;font-size:11px;cursor:pointer;font-family:'Barlow',sans-serif;font-weight:600;">Copy</button>
-    </div>
-
-    <div class="setup-step">
-      <div class="setup-num">4</div>
-      <div class="setup-text">In the script, replace <code>PASTE_YOUR_SHEET_ID_HERE</code> and <code>PASTE_YOUR_FOLDER_ID_HERE</code> with your actual IDs from steps 1 and 2. Then click <strong>Save (Ctrl+S)</strong></div>
-    </div>
-    <div class="setup-step">
-      <div class="setup-num">5</div>
-      <div class="setup-text">Click <strong>Deploy → New Deployment</strong> → Type: <strong>Web App</strong> → Execute as: <strong>Me</strong> → Who has access: <strong>Anyone</strong> → Click <strong>Deploy</strong> → Authorize when prompted → Copy the Web App URL</div>
-    </div>
-    <div class="setup-step">
-      <div class="setup-num">6</div>
-      <div class="setup-text">Paste the Web App URL below and tap <strong>Connect</strong>. Share the same URL with your employee — she pastes it into her copy of this app too.</div>
-    </div>
-
-    <div class="form-group" style="margin-bottom:8px;margin-top:4px;">
-      <label>Google Apps Script Web App URL</label>
-      <input type="text" id="sync-url" placeholder="https://script.google.com/macros/s/.../exec">
-    </div>
-    <div class="gdrive-input-row">
-      <button class="btn btn-primary" onclick="connectSync()" style="flex:1;">🔗 Connect & Sync Now</button>
-    </div>
-    <div class="gdrive-status" id="sync-status"></div>
+    <div class="gdrive-arrow" id="sync-banner-arrow">⏳</div>
   </div>
 
   <!-- Search bar -->
@@ -1191,11 +1070,8 @@ function importData(e) {
 // ── INIT ──
 document.addEventListener('DOMContentLoaded', () => {
   loadFromStorage();
-  loadSyncConfig();
-  // Auto-sync on load if connected
-  if (localStorage.getItem('autodrome_sync_url')) {
-    setTimeout(() => pullFromSheet(), 1500);
-  }
+  setupRealtime();
+  setTimeout(() => pullFromSupabase(true), 1500);
 
   // Load autocomplete lists
   try { vendorList = JSON.parse(localStorage.getItem(VENDOR_KEY) || '[]'); } catch(e) { vendorList = []; }
@@ -1441,14 +1317,13 @@ function submitPO() {
     po.preparedBy = preparedBy; po.items = items; po.grandTotal = grandTotal;
     if (empSig) po.empSig = empSig;
     save();
-    pushToSheet('update', po);
+    pushToSupabase(po);
     editingPOId = null;
     resetForm();
     renderPending();
     updateBadge();
     showToast('✓ PO updated successfully!');
     showPage('pending');
-    setTimeout(() => pullFromSheet(), 2000);
   } else {
     // ── NEW PO ──
     const po = {
@@ -1463,13 +1338,12 @@ function submitPO() {
     };
     poList.push(po);
     save();
-    pushToSheet('submit', po);
+    pushToSupabase(po);
     showToast('✓ PO submitted successfully!');
     resetForm();
     renderPending();
     updateBadge();
     showPage('pending');
-    setTimeout(() => pullFromSheet(), 2000);
   }
 }
 
@@ -1748,7 +1622,7 @@ function confirmDeletePO(id) {
   if (confirm(`Delete PO #${po.poNumber} (${po.company})?\n\nThis cannot be undone.`)) {
     poList = poList.filter(p => p.id !== id);
     save();
-    pushDeleteToSheet(id);
+    deleteFromSupabase(id);
     renderPending();
     updateBadge();
     showToast('PO #' + po.poNumber + ' deleted.', '#c0392b');
@@ -1786,14 +1660,13 @@ function confirmVoid() {
   po.voidedAt = new Date().toISOString();
   po.voidReason = reason;
   save();
-  pushToSheet('void', po);
+  pushToSupabase(po);
 
   closeVoidModal();
   renderApproved();
   renderVoided();
   showToast('PO #' + po.poNumber + ' has been voided.', '#c0392b');
   showPage('voided');
-  setTimeout(() => pullFromSheet(), 2000);
 }
 
 // ── PIN LOGIC ──
@@ -1852,7 +1725,7 @@ function checkPIN() {
       poList = poList.filter(p => p.id !== deletedId);
       deleteVoidedId = null;
       save();
-      pushDeleteToSheet(deletedId);
+      deleteFromSupabase(deletedId);
       renderVoided();
       showToast('PO #' + poNum + ' permanently deleted.', '#c0392b');
     } else {
@@ -2106,247 +1979,203 @@ async function approvePO() {
   const po = poList.find(p => p.id === currentApproveId);
   po.status = 'approved'; po.approvedAt = new Date().toISOString(); po.approverSig = sigData;
   save();
-  pushToSheet('approve', po, false); // don't include PDF — payload too large for reliable mobile push
+  await pushToSupabase(po);
   closeModal(); renderPending(); renderApproved(); updateBadge();
   showToast('✓ PO Approved!'); showPage('approved');
   if (gdriveConfig.url && gdriveConfig.folder) {
     showToast('📁 Saving to Google Drive...', '#1a3a6b');
     await uploadToGDrive(po);
   }
-  // Verify push reached cloud: pull after 4s, retry if needed
-  setTimeout(async () => {
-    await pullFromSheet(true);
-    const cloudPO = poList.find(p => p.id === po.id);
-    if (cloudPO && cloudPO.status !== 'approved') {
-      console.warn('[SYNC VERIFY] Cloud still pending — retrying push');
-      showToast('⏳ Re-syncing approval...', '#e67e22');
-      // Re-read from local (pull may have overwritten with stale cloud data)
-      const localApproved = JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]')
-        .find(p => p.id === po.id && p.status === 'approved');
-      if (localApproved) {
-        // Restore the approved version locally
-        const idx = poList.findIndex(p => p.id === po.id);
-        if (idx >= 0) poList[idx] = localApproved;
-        save();
-      }
-      await pushToSheet('approve', po, false);
-      setTimeout(() => pullFromSheet(true), 4000);
-    } else {
-      console.log('[SYNC VERIFY] Cloud confirmed approved');
-    }
-  }, 4000);
 }
 
-// ── GOOGLE SYNC ENGINE ──
-const SYNC_KEY = 'autodrome_sync_url';
-let syncUrl = '';
-let syncEnabled = false;
+// ── SUPABASE SYNC ENGINE ──
+const SUPABASE_URL = 'https://qhmqauyuybbnniwq.supabase.co';
+const SUPABASE_KEY = 'sb_publishable_u0d3j2Zcs8wzcyT1UfdRfA_-6Y0s27l';
+const { createClient } = supabase;
+const sb = createClient(SUPABASE_URL, SUPABASE_KEY);
+let syncEnabled = true;
 
-function loadSyncConfig() {
-  try { syncUrl = localStorage.getItem(SYNC_KEY) || ''; } catch(e) {}
-  if (syncUrl) {
-    syncEnabled = true;
-    updateSyncBanner(true);
-    document.getElementById('sync-url').value = syncUrl;
-    const btn = document.getElementById('sync-btn');
-    if (btn) btn.style.display = 'inline-block';
-    // Background auto-sync every 30 seconds
-    setInterval(() => {
-      if (syncEnabled) pullFromSheet(true);
-    }, 30000);
-  }
+// ── OFFLINE QUEUE ──
+const OFFLINE_QUEUE_KEY = 'autodrome_offline_queue';
+
+function getOfflineQueue() {
+  try { return JSON.parse(localStorage.getItem(OFFLINE_QUEUE_KEY) || '[]'); } catch(e) { return []; }
 }
-
-function toggleSyncSetup() {
-  document.getElementById('sync-setup-card').classList.toggle('open');
+function saveOfflineQueue(q) {
+  try { localStorage.setItem(OFFLINE_QUEUE_KEY, JSON.stringify(q)); } catch(e) {}
 }
-
-function copyScript() {
-  const code = document.getElementById('apps-script-code').textContent;
-  navigator.clipboard.writeText(code).then(() => showToast('✓ Script copied to clipboard!'));
+function addToOfflineQueue(po) {
+  const q = getOfflineQueue();
+  const idx = q.findIndex(o => String(o.id) === String(po.id));
+  if (idx >= 0) q[idx] = po; else q.push(po);
+  saveOfflineQueue(q);
 }
-
-async function connectSync() {
-  const url = document.getElementById('sync-url').value.trim();
-  const statusEl = document.getElementById('sync-status');
-  if (!url) { statusEl.className = 'gdrive-status err'; statusEl.textContent = '⚠ Please paste your Web App URL.'; return; }
-  if (!url.includes('script.google.com') || !url.includes('/exec')) {
-    statusEl.className = 'gdrive-status err'; statusEl.textContent = '⚠ URL looks incorrect. Make sure it ends in /exec.'; return;
-  }
-  statusEl.className = 'gdrive-status'; statusEl.textContent = '⏳ Connecting...';
-  try {
-    const res = await fetch(url, { method: 'GET', mode: 'no-cors' });
-    // no-cors won't give us a readable response, so just trust the URL is valid
-    syncUrl = url; syncEnabled = true;
-    try { localStorage.setItem(SYNC_KEY, syncUrl); } catch(e) {}
-    statusEl.className = 'gdrive-status ok'; statusEl.textContent = '✓ Connected! Syncing data now...';
-    updateSyncBanner(true);
-    const btn = document.getElementById('sync-btn');
-    if (btn) btn.style.display = 'inline-block';
-    await pullFromSheet();
-    showToast('✓ Google Sync connected!');
-  } catch(err) {
-    statusEl.className = 'gdrive-status err';
-    statusEl.textContent = '⚠ Could not connect. Check the URL and make sure the script is deployed as "Anyone" access.';
-  }
-}
-
-function updateSyncBanner(connected) {
-  if (connected) {
-    document.getElementById('sync-banner-title').textContent = '✓ Google Sync Connected';
-    document.getElementById('sync-banner-sub').textContent = 'Data syncs across all devices · Tap to manage';
-    document.getElementById('sync-banner-arrow').textContent = '⚙';
-  }
-}
-
-// Push a single PO action to Google Sheet
-async function pushToSheet(action, po, includePDF = false) {
-  if (!syncEnabled || !syncUrl) return;
-
-  // Ensure ID is a string to avoid numeric precision issues in Google Sheets
-  const safePO = Object.assign({}, po, { id: String(po.id) });
-  const payload = { action, po: safePO };
-  if (includePDF && po.approverSig) {
+async function flushOfflineQueue() {
+  const q = getOfflineQueue();
+  if (q.length === 0) return;
+  showToast('⏳ Syncing offline changes...', '#1a3a6b');
+  let failed = [];
+  for (const po of q) {
     try {
-      const pdfBlob = buildPDF(po).output('blob');
-      const buffer = await pdfBlob.arrayBuffer();
-      let binary = ''; new Uint8Array(buffer).forEach(b => binary += String.fromCharCode(b));
-      payload.pdf = btoa(binary);
-    } catch(e) {}
+      const { error } = await sb.from('purchase_orders').upsert(poToRow(po));
+      if (error) throw error;
+    } catch(e) { failed.push(po); }
   }
+  saveOfflineQueue(failed);
+  if (failed.length === 0) showToast('✓ Offline changes synced!');
+}
 
-  const body = JSON.stringify(payload);
-  console.log('[SYNC PUSH]', action, 'id=' + safePO.id, '(type=' + typeof safePO.id + ')', 'status=' + safePO.status, 'size=' + body.length + 'B');
+// ── ROW CONVERTERS ──
+function poToRow(po) {
+  return {
+    id: String(po.id),
+    date: po.date || null,
+    po_number: po.poNumber || null,
+    company: po.company || null,
+    attn: po.attn || null,
+    contact: po.contact || null,
+    address: po.address || null,
+    prepared_by: po.preparedBy || null,
+    items: po.items || [],
+    grand_total: po.grandTotal || 0,
+    emp_sig: po.empSig || null,
+    status: po.status || 'pending',
+    approved_at: po.approvedAt || null,
+    approver_sig: po.approverSig || null,
+    voided_at: po.voidedAt || null,
+    void_reason: po.voidReason || null,
+    updated_at: new Date().toISOString()
+  };
+}
+function rowToPO(row) {
+  return {
+    id: row.id,
+    date: row.date || '',
+    poNumber: row.po_number || '',
+    company: row.company || '',
+    attn: row.attn || '',
+    contact: row.contact || '',
+    address: row.address || '',
+    preparedBy: row.prepared_by || '',
+    items: row.items || [],
+    grandTotal: row.grand_total || 0,
+    empSig: row.emp_sig || null,
+    status: row.status || 'pending',
+    approvedAt: row.approved_at || null,
+    approverSig: row.approver_sig || null,
+    voidedAt: row.voided_at || null,
+    voidReason: row.void_reason || null
+  };
+}
 
-  // Try CORS first (can read response), fall back to no-cors
-  let confirmed = false;
+// ── PUSH (upsert single PO) ──
+async function pushToSupabase(po) {
+  if (!navigator.onLine) {
+    addToOfflineQueue(po);
+    showToast('📵 Offline — will sync when reconnected.', '#e67e22');
+    return;
+  }
   try {
-    const resp = await fetch(syncUrl, {
-      method: 'POST',
-      redirect: 'follow',
-      headers: { 'Content-Type': 'text/plain' },
-      body: body
-    });
-    if (resp.ok) {
-      confirmed = true;
-      console.log('[SYNC PUSH] CORS push confirmed OK');
+    const { error } = await sb.from('purchase_orders').upsert(poToRow(po));
+    if (error) throw error;
+  } catch(e) {
+    console.error('[SUPABASE PUSH]', e.message);
+    addToOfflineQueue(po);
+    showToast('⚠ Could not sync — queued for retry.', '#e67e22');
+  }
+}
+
+// ── DELETE ──
+async function deleteFromSupabase(id) {
+  if (!navigator.onLine) return;
+  try {
+    const { error } = await sb.from('purchase_orders').delete().eq('id', String(id));
+    if (error) throw error;
+  } catch(e) { console.error('[SUPABASE DELETE]', e.message); }
+}
+
+// ── PULL (full refresh with smart merge) ──
+async function pullFromSupabase(silent = false) {
+  try {
+    if (!silent) showToast('⏳ Syncing from cloud...', '#1a3a6b');
+    const { data, error } = await sb.from('purchase_orders').select('*');
+    if (error) throw error;
+    if (data && data.length > 0) {
+      const statusRank = { approved: 3, voided: 2, pending: 1 };
+      const cloudMap = {};
+      data.forEach(row => { cloudMap[row.id] = rowToPO(row); });
+      const localMap = {};
+      poList.forEach(po => { localMap[String(po.id)] = po; });
+      const merged = [];
+      const allIds = new Set([...Object.keys(cloudMap), ...Object.keys(localMap)]);
+      allIds.forEach(id => {
+        const cloud = cloudMap[id];
+        const local = localMap[id];
+        if (!local) { merged.push(cloud); return; }
+        if (!cloud) { merged.push(local); return; }
+        const cloudRank = statusRank[cloud.status] || 0;
+        const localRank = statusRank[local.status] || 0;
+        merged.push(cloudRank >= localRank ? cloud : local);
+      });
+      poList = merged;
+      save();
+      renderPending(); renderApproved(); renderVoided(); updateBadge();
+      if (!silent) showToast('✓ Synced!');
     } else {
-      console.warn('[SYNC PUSH] CORS push status:', resp.status);
+      if (!silent) showToast('✓ Cloud is empty — using local data.');
     }
   } catch(e) {
-    console.warn('[SYNC PUSH] CORS push failed, trying no-cors:', e.message);
-    // Fallback: no-cors (can't read response but still sends)
-    try {
-      await fetch(syncUrl, {
-        method: 'POST',
-        mode: 'no-cors',
-        headers: { 'Content-Type': 'text/plain' },
-        body: body
-      });
-      console.log('[SYNC PUSH] no-cors push sent (unconfirmed)');
-    } catch(e2) {
-      console.error('[SYNC PUSH] all push methods failed:', e2.message);
-      showToast('⚠ Sync failed — saved locally.', '#e67e22');
-    }
+    console.error('[SUPABASE PULL]', e.message);
+    if (!silent) showToast('⚠ Could not reach cloud — using local data.', '#e67e22');
   }
 }
 
-// Push ALL local POs to cloud (used by fullSync to ensure cloud is up to date)
-async function pushAllToSheet() {
-  if (!syncEnabled || !syncUrl) return;
-  for (const po of poList) {
-    const action = po.status === 'approved' ? 'approve' : po.status === 'voided' ? 'void' : 'submit';
-    await pushToSheet(action, po, false);
-  }
-  console.log('[SYNC] Pushed all', poList.length, 'POs to cloud');
-}
-
-// Full sync: push local changes first, then pull cloud data
+// ── FULL SYNC (manual button) ──
 async function fullSync() {
-  if (!syncEnabled || !syncUrl) return;
   showToast('⏳ Syncing...', '#1a3a6b');
-  await pushAllToSheet();
-  await pullFromSheet(true);
+  for (const po of poList) {
+    await pushToSupabase(po);
+  }
+  await pullFromSupabase(true);
   showToast('✓ Synced!');
 }
 
-// Push delete action
-async function pushDeleteToSheet(id) {
-  if (!syncEnabled || !syncUrl) return;
-  try {
-    await fetch(syncUrl, {
-      method: 'POST', mode: 'no-cors',
-      headers: { 'Content-Type': 'text/plain' },
-      body: JSON.stringify({ action: 'delete', id: String(id) })
+// ── REALTIME SUBSCRIPTION ──
+function setupRealtime() {
+  sb.channel('po-changes')
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'purchase_orders' }, () => {
+      pullFromSupabase(true);
+    })
+    .subscribe((status) => {
+      console.log('[REALTIME]', status);
+      if (status === 'SUBSCRIBED') updateSyncBanner(true);
     });
-  } catch(e) {}
 }
 
-// Pull all POs from Google Sheet (replaces local data)
-async function pullFromSheet(silent = false) {
-  if (!syncEnabled || !syncUrl) return;
-  try {
-    if (!silent) showToast('⏳ Syncing from cloud...', '#1a3a6b');
-    await pullViaScript(silent);
-  } catch(e) { if (!silent) showToast('⚠ Could not reach cloud — using local data.', '#e67e22'); }
+// ── ONLINE / OFFLINE ──
+window.addEventListener('online', async () => {
+  showToast('✓ Back online!', '#27ae60');
+  await flushOfflineQueue();
+  await pullFromSupabase(true);
+});
+window.addEventListener('offline', () => {
+  showToast('📵 Offline — changes will sync when reconnected.', '#e67e22');
+});
+
+// ── SYNC BANNER ──
+function updateSyncBanner(connected) {
+  const title = document.getElementById('sync-banner-title');
+  const sub = document.getElementById('sync-banner-sub');
+  const arrow = document.getElementById('sync-banner-arrow');
+  if (title) title.textContent = connected ? '✓ Supabase Sync Active' : '⏳ Connecting to Supabase...';
+  if (sub) sub.textContent = connected ? 'Live sync across all devices · Tap to sync now' : 'Setting up real-time sync';
+  if (arrow) arrow.textContent = connected ? '🔄' : '⏳';
+  const btn = document.getElementById('sync-btn');
+  if (btn) btn.style.display = 'inline-block';
+  const mobileBtn = document.getElementById('mobile-sync-btn');
+  if (mobileBtn) mobileBtn.style.display = 'block';
 }
 
-function pullViaScript(silent = false) {
-  return new Promise((resolve) => {
-    const cbName = 'gsCb_' + Date.now();
-    window[cbName] = function(json) {
-      try {
-        if (json.ok && Array.isArray(json.data) && json.data.length > 0) {
-          console.log('[SYNC PULL] Cloud returned', json.data.length, 'POs:',
-            json.data.map(p => p.poNumber + '=' + p.status).join(', '));
-
-          // Smart merge: for each PO from cloud, only use it if
-          // it's newer than or not present in local data
-          const cloudMap = {};
-          json.data.forEach(po => { if (po.id) cloudMap[String(po.id)] = po; });
-
-          const localMap = {};
-          poList.forEach(po => { if (po.id) localMap[String(po.id)] = po; });
-
-          // Status priority: approved > voided > pending
-          const statusRank = { approved: 3, voided: 2, pending: 1 };
-
-          const merged = [];
-          const allIds = new Set([...Object.keys(cloudMap), ...Object.keys(localMap)]);
-          allIds.forEach(id => {
-            const cloud = cloudMap[id];
-            const local = localMap[id];
-            if (!local) { merged.push(cloud); return; }
-            if (!cloud) { merged.push(local); return; }
-            // Keep whichever has higher status rank (approved beats pending)
-            const cloudRank = statusRank[cloud.status] || 0;
-            const localRank = statusRank[local.status] || 0;
-            const winner = cloudRank >= localRank ? 'cloud' : 'local';
-            console.log('[SYNC MERGE] PO', cloud.poNumber || local.poNumber,
-              '→ cloud=' + (cloud.status) + '(' + cloudRank + ')',
-              'local=' + (local.status) + '(' + localRank + ')',
-              '→ using', winner);
-            merged.push(cloudRank >= localRank ? cloud : local);
-          });
-
-          poList = merged;
-          save();
-          renderPending(); renderApproved(); renderVoided(); updateBadge();
-          if (!silent) showToast('✓ Synced from cloud!');
-        } else {
-          console.log('[SYNC PULL] Cloud empty or error:', JSON.stringify(json).substring(0, 200));
-          if (!silent) showToast('✓ Cloud is empty — using local data.');
-        }
-      } catch(e) { console.error('[SYNC PULL] Parse error:', e); }
-      delete window[cbName];
-      resolve();
-    };
-    const script = document.createElement('script');
-    script.src = syncUrl + '?callback=' + cbName + '&t=' + Date.now();
-    script.onerror = () => { delete window[cbName]; resolve(); };
-    document.head.appendChild(script);
-    setTimeout(() => { delete window[cbName]; resolve(); }, 8000);
-  });
 }
 
 // ── PDF ──
@@ -2689,7 +2518,7 @@ function showPage(name) {
     if (mobileActions && window.innerWidth <= 600) {
       mobileActions.style.display = 'block';
       const mobileSyncBtn = document.getElementById('mobile-sync-btn');
-      if (mobileSyncBtn && syncEnabled) mobileSyncBtn.style.display = 'block';
+      if (mobileSyncBtn) mobileSyncBtn.style.display = 'block';
     }
   }
   if (name === 'pending') renderPending();
