@@ -1080,6 +1080,7 @@ function importData(e) {
 // ── INIT ──
 document.addEventListener('DOMContentLoaded', () => {
   loadFromStorage();
+  save(); // flush old signature-bloated data from localStorage
   setupRealtime();
   setTimeout(() => pullFromSupabase(true), 1500);
 
@@ -1797,7 +1798,7 @@ function uploadDefaultSig(e) {
   const reader = new FileReader();
   reader.onload = (evt) => {
     defaultSig = evt.target.result;
-    try { localStorage.setItem(SIG_KEY, defaultSig); } catch(err) {}
+    try { localStorage.setItem(SIG_KEY, defaultSig); } catch(err) { /* storage full, sig kept in memory */ }
     // Show banner immediately
     document.getElementById('default-sig-banner').style.display = 'flex';
     document.getElementById('draw-sig-section').style.display = 'none';
@@ -1960,7 +1961,7 @@ function uploadEmpSig(e) {
     try { localStorage.setItem(EMP_SIG_KEY, empDefaultSig); } catch(err) {}
     document.getElementById('emp-sig-banner').style.display = 'flex';
     document.getElementById('emp-draw-section').style.display = 'none';
-    showToast('✓ Signature uploaded and saved!');
+    showToast('✓ Signature ready!');
   };
   reader.readAsDataURL(file);
   e.target.value = '';
