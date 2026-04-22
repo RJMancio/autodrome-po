@@ -1792,19 +1792,42 @@ function switchToDrawMode() {
   requestAnimationFrame(() => { requestAnimationFrame(resizeCanvas); });
 }
 
+// Compress any uploaded image to a small JPEG (max 400px wide, quality 0.7)
+// Handles TIFF, BMP, PNG, JPEG — any format the browser can decode
+function compressSignatureImage(file, callback) {
+  const reader = new FileReader();
+  reader.onload = (evt) => {
+    const img = new Image();
+    img.onload = () => {
+      const MAX_W = 400;
+      const scale = img.width > MAX_W ? MAX_W / img.width : 1;
+      const w = Math.round(img.width * scale);
+      const h = Math.round(img.height * scale);
+      const canvas = document.createElement('canvas');
+      canvas.width = w;
+      canvas.height = h;
+      const ctx = canvas.getContext('2d');
+      ctx.fillStyle = '#ffffff';
+      ctx.fillRect(0, 0, w, h);
+      ctx.drawImage(img, 0, 0, w, h);
+      callback(canvas.toDataURL('image/jpeg', 0.7));
+    };
+    img.onerror = () => showToast('⚠ Could not read image file.', '#c0392b');
+    img.src = evt.target.result;
+  };
+  reader.readAsDataURL(file);
+}
+
 function uploadDefaultSig(e) {
   const file = e.target.files[0];
   if (!file) return;
-  const reader = new FileReader();
-  reader.onload = (evt) => {
-    defaultSig = evt.target.result;
+  compressSignatureImage(file, (compressed) => {
+    defaultSig = compressed;
     try { localStorage.setItem(SIG_KEY, defaultSig); } catch(err) { /* storage full, sig kept in memory */ }
-    // Show banner immediately
     document.getElementById('default-sig-banner').style.display = 'flex';
     document.getElementById('draw-sig-section').style.display = 'none';
     showToast('✓ Signature saved! Will be used for all future approvals.');
-  };
-  reader.readAsDataURL(file);
+  });
   e.target.value = '';
 }
 
@@ -1955,15 +1978,13 @@ function switchToEmpDrawMode() {
 function uploadEmpSig(e) {
   const file = e.target.files[0];
   if (!file) return;
-  const reader = new FileReader();
-  reader.onload = (evt) => {
-    empDefaultSig = evt.target.result;
+  compressSignatureImage(file, (compressed) => {
+    empDefaultSig = compressed;
     try { localStorage.setItem(EMP_SIG_KEY, empDefaultSig); } catch(err) {}
     document.getElementById('emp-sig-banner').style.display = 'flex';
     document.getElementById('emp-draw-section').style.display = 'none';
     showToast('✓ Signature ready!');
-  };
-  reader.readAsDataURL(file);
+  });
   e.target.value = '';
 }
 
