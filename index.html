@@ -1792,9 +1792,13 @@ function switchToDrawMode() {
   requestAnimationFrame(() => { requestAnimationFrame(resizeCanvas); });
 }
 
-// Compress an uploaded image to a small JPEG (max 400px wide, quality 0.7)
-// Supported: PNG, JPEG, WEBP, GIF — browsers cannot decode TIFF natively
+// Compress an uploaded signature image into a fixed 400×150 landscape JPEG.
+// Scales the image to fit inside the box (preserving aspect ratio), centers it
+// on a white background. This guarantees a consistent size/shape for PDF rendering
+// regardless of what orientation the original file was in.
+// Supported: PNG, JPEG, WEBP, GIF — browsers cannot decode TIFF natively.
 const SUPPORTED_SIG_TYPES = ['image/png','image/jpeg','image/jpg','image/webp','image/gif'];
+const SIG_BOX_W = 400, SIG_BOX_H = 150;
 function compressSignatureImage(file, callback) {
   if (!SUPPORTED_SIG_TYPES.includes(file.type)) {
     showToast('⚠ Unsupported format. Please use PNG or JPEG.', '#c0392b');
@@ -1804,18 +1808,17 @@ function compressSignatureImage(file, callback) {
   reader.onload = (evt) => {
     const img = new Image();
     img.onload = () => {
-      const MAX_W = 400;
-      const scale = img.width > MAX_W ? MAX_W / img.width : 1;
-      const w = Math.round(img.width * scale);
-      const h = Math.round(img.height * scale);
+      const scale = Math.min(SIG_BOX_W / img.width, SIG_BOX_H / img.height);
+      const dw = Math.round(img.width * scale);
+      const dh = Math.round(img.height * scale);
       const canvas = document.createElement('canvas');
-      canvas.width = w;
-      canvas.height = h;
+      canvas.width = SIG_BOX_W;
+      canvas.height = SIG_BOX_H;
       const ctx = canvas.getContext('2d');
       ctx.fillStyle = '#ffffff';
-      ctx.fillRect(0, 0, w, h);
-      ctx.drawImage(img, 0, 0, w, h);
-      callback(canvas.toDataURL('image/jpeg', 0.7));
+      ctx.fillRect(0, 0, SIG_BOX_W, SIG_BOX_H);
+      ctx.drawImage(img, Math.round((SIG_BOX_W - dw) / 2), Math.round((SIG_BOX_H - dh) / 2), dw, dh);
+      callback(canvas.toDataURL('image/jpeg', 0.85));
     };
     img.onerror = () => showToast('⚠ Could not read image file. Please use PNG or JPEG.', '#c0392b');
     img.src = evt.target.result;
@@ -2254,14 +2257,22 @@ function buildPDF(po) {
   // ─────────────────────────────────────────────────────────────
   let y = 16;
 
-  // Helper: draw a signature image preserving aspect ratio within maxW x maxH
+  // Helper: draw a signature image at correct proportions.
+  // Uploaded sigs are always stored as 400×150 JPEG (landscape).
+  // Canvas-drawn sigs are PNG at whatever the canvas size is — use getImageProperties for those.
   function addSigImage(sigData, x, y, maxW, maxH) {
     try {
-      const props = doc.getImageProperties(sigData);
-      const ratio = props.width / props.height;
+      const isJpeg = sigData.startsWith('data:image/jpeg') || sigData.startsWith('data:image/jpg');
+      let ratio;
+      if (isJpeg) {
+        ratio = SIG_BOX_W / SIG_BOX_H; // 400/150 ≈ 2.667 — known fixed ratio
+      } else {
+        const props = doc.getImageProperties(sigData);
+        ratio = props.width / props.height;
+      }
       let w = maxW, h = maxW / ratio;
       if (h > maxH) { h = maxH; w = maxH * ratio; }
-      const fmt = sigData.startsWith('data:image/png') ? 'PNG' : 'JPEG';
+      const fmt = isJpeg ? 'JPEG' : 'PNG';
       doc.addImage(sigData, fmt, x, y, w, h);
     } catch(e) {}
   }
