@@ -742,7 +742,7 @@
         <button class="btn btn-outline" id="save-emp-sig-btn" onclick="saveEmpDrawnSig()" style="display:none;">💾 Save as Default</button>
         <label class="btn btn-outline" style="cursor:pointer;margin:0;">
           📁 Upload Signature
-          <input type="file" accept="image/*" onchange="uploadEmpSig(event)" style="display:none;">
+          <input type="file" accept="image/png,image/jpeg,image/webp" onchange="uploadEmpSig(event)" style="display:none;">
         </label>
       </div>
       <div style="font-size:11px;color:var(--muted);margin-top:6px;">Draw or upload once to save for future POs on this device.</div>
@@ -956,7 +956,7 @@
         <button class="btn btn-outline" id="save-sig-btn" onclick="saveDrawnSig()" style="display:none;">💾 Save as Default</button>
         <label class="btn btn-outline" style="cursor:pointer;margin:0;">
           📁 Upload Signature Image
-          <input type="file" accept="image/*" onchange="uploadDefaultSig(event)" style="display:none;">
+          <input type="file" accept="image/png,image/jpeg,image/webp" onchange="uploadDefaultSig(event)" style="display:none;">
         </label>
       </div>
       <div style="font-size:11px;color:var(--muted);margin-top:6px;">Upload or draw once to save as your default signature for all future approvals.</div>
@@ -1792,9 +1792,14 @@ function switchToDrawMode() {
   requestAnimationFrame(() => { requestAnimationFrame(resizeCanvas); });
 }
 
-// Compress any uploaded image to a small JPEG (max 400px wide, quality 0.7)
-// Handles TIFF, BMP, PNG, JPEG — any format the browser can decode
+// Compress an uploaded image to a small JPEG (max 400px wide, quality 0.7)
+// Supported: PNG, JPEG, WEBP, GIF — browsers cannot decode TIFF natively
+const SUPPORTED_SIG_TYPES = ['image/png','image/jpeg','image/jpg','image/webp','image/gif'];
 function compressSignatureImage(file, callback) {
+  if (!SUPPORTED_SIG_TYPES.includes(file.type)) {
+    showToast('⚠ Unsupported format. Please use PNG or JPEG.', '#c0392b');
+    return;
+  }
   const reader = new FileReader();
   reader.onload = (evt) => {
     const img = new Image();
@@ -1812,7 +1817,7 @@ function compressSignatureImage(file, callback) {
       ctx.drawImage(img, 0, 0, w, h);
       callback(canvas.toDataURL('image/jpeg', 0.7));
     };
-    img.onerror = () => showToast('⚠ Could not read image file.', '#c0392b');
+    img.onerror = () => showToast('⚠ Could not read image file. Please use PNG or JPEG.', '#c0392b');
     img.src = evt.target.result;
   };
   reader.readAsDataURL(file);
