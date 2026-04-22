@@ -2254,6 +2254,18 @@ function buildPDF(po) {
   // ─────────────────────────────────────────────────────────────
   let y = 16;
 
+  // Helper: draw a signature image preserving aspect ratio within maxW x maxH
+  function addSigImage(sigData, x, y, maxW, maxH) {
+    try {
+      const props = doc.getImageProperties(sigData);
+      const ratio = props.width / props.height;
+      let w = maxW, h = maxW / ratio;
+      if (h > maxH) { h = maxH; w = maxH * ratio; }
+      const fmt = sigData.startsWith('data:image/png') ? 'PNG' : 'JPEG';
+      doc.addImage(sigData, fmt, x, y, w, h);
+    } catch(e) {}
+  }
+
   // Logo (left side)
   if (companyLogo) {
     try {
@@ -2477,7 +2489,7 @@ function buildPDF(po) {
 
   // Prepared by (left)
   if (po.empSig) {
-    try { doc.addImage(po.empSig, 'PNG', ml, y - 2, sigColW * 0.8, 14); } catch(e) {}
+    addSigImage(po.empSig, ml, y - 14, sigColW * 0.8, 13);
     y += 12;
   }
 
@@ -2504,7 +2516,7 @@ function buildPDF(po) {
   if (po.empSig) { sigY = y - 13; } else { sigY = y - 1; }
 
   if (po.approverSig) {
-    try { doc.addImage(po.approverSig, 'PNG', sigX, sigY - 1, sigColW * 0.8, 14); } catch(e) {}
+    addSigImage(po.approverSig, sigX, y - 14, sigColW * 0.8, 13);
   }
 
   doc.setFont('helvetica', 'bold');
